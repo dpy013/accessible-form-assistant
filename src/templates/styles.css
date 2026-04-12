@@ -1,0 +1,59 @@
+body {
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    margin: 24px;
+    color: #1f2937;
+}
+
+.hero {
+    margin-bottom: 24px;
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(120px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.card {
+    border: 1px solid #d1d5db;
+    border-radius: 12px;
+    padding: 16px;
+    background: #f9fafb;
+}
+
+.card strong {
+    display: block;
+    font-size: 24px;
+    margin-bottom: 8px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    border: 1px solid #d1d5db;
+    padding: 10px;
+    vertical-align: top;
+    text-align: left;
+}
+
+thead {
+    background: #eef2ff;
+}
+
+.status-passed {
+    background: #ecfdf5;
+}
+
+.status-failed {
+    background: #fef2f2;
+}
+
+.status-pending,
+.status-not_applicable {
+    background: #fffbeb;
+}

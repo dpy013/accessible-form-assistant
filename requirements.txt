@@ -1,0 +1,5 @@
+wxPython
+python-docx
+openpyxl
+Pillow
+jinja2

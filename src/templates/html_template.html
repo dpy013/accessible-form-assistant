@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>{{ meta.project_number }} 无障碍测试报告</title>
+    <style>{{ styles }}</style>
+</head>
+<body>
+    <header class="hero">
+        <h1>信息无障碍测试报告</h1>
+        <p>项目编号：{{ meta.project_number }}</p>
+        <p>工程名称：{{ meta.project_name or "未命名工程" }}</p>
+        <p>场景：{{ meta.scenario }} ｜ 模板：{{ meta.template }} ｜ 创建时间：{{ meta.created_time }}</p>
+    </header>
+
+    <section class="stats">
+        <div class="card"><strong>{{ stats.total }}</strong><span>总检查项</span></div>
+        <div class="card"><strong>{{ stats.passed }}</strong><span>通过</span></div>
+        <div class="card"><strong>{{ stats.failed }}</strong><span>失败</span></div>
+        <div class="card"><strong>{{ stats.pending }}</strong><span>待处理</span></div>
+        <div class="card"><strong>{{ stats.not_applicable }}</strong><span>不适用</span></div>
+    </section>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>检查项</th>
+                <th>状态</th>
+                <th>优先级</th>
+                <th>描述</th>
+                <th>截图</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for item in items %}
+            <tr class="status-{{ item.status }}">
+                <td>{{ item.id }}</td>
+                <td>{{ item.content }}</td>
+                <td>{{ item.status }}</td>
+                <td>{{ item.priority }}</td>
+                <td>{{ item.description or "-" }}</td>
+                <td>
+                    {% if item.image_path %}
+                        <a href="{{ item.image_path }}">{{ item.image_path }}</a>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

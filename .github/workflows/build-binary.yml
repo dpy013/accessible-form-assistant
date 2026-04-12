@@ -1,0 +1,45 @@
+name: Build binary
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller build scons
+
+      - name: Run compile check
+        shell: pwsh
+        run: |
+          python -m compileall src
+
+      - name: Build executable
+        shell: pwsh
+        run: |
+          pyinstaller --clean accessible-form-assist.spec
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: accessible-form-assist-windows
+          path: dist/accessible-form-assist/**
+          if-no-files-found: error
+

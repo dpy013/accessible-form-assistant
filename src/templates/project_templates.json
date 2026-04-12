@@ -1,0 +1,142 @@
+{
+  "App (Android/iOS)": [
+    {
+      "id": "mobile_wcag_2_1",
+      "name": "WCAG 2.1 移动端检查模板",
+      "items": [
+        {
+          "id": "APP_1_1_1",
+          "content": "图片按钮需要提供可读名称",
+          "status": "pending",
+          "description": "",
+          "image_path": "",
+          "priority": "high",
+          "deleted": false
+        },
+        {
+          "id": "APP_2_1_1",
+          "content": "所有可操作控件可通过键盘或辅助焦点访问",
+          "status": "pending",
+          "description": "",
+          "image_path": "",
+          "priority": "high",
+          "deleted": false
+        },
+        {
+          "id": "APP_4_1_2",
+          "content": "状态变更需要被屏幕阅读器感知",
+          "status": "pending",
+          "description": "",
+          "image_path": "",
+          "priority": "medium",
+          "deleted": false
+        }
+      ]
+    }
+  ],
+  "Web": [
+    {
+      "id": "wcag_2_1",
+      "name": "WCAG 2.1 Web 检查模板",
+      "items": [
+        {
+          "id": "WCAG_1_1_1",
+          "content": "所有非文本内容都应提供替代文本",
+          "status": "pending",
+          "description": "",
+          "image_path": "",
+          "priority": "high",
+          "deleted": false
+        },
+        {
+          "id": "WCAG_2_4_7",
+          "content": "键盘焦点应始终可见",
+          "status": "pending",
+          "description": "",
+          "image_path": "",
+          "priority": "high",
+          "deleted": false
+        },
+        {
+          "id": "WCAG_3_3_1",
+          "content": "表单错误需要提供明确提示",
+          "status": "pending",
+          "description": "",
+          "image_path": "",
+          "priority": "medium",
+          "deleted": false
+        }
+      ]
+    }
+  ],
+  "Windows": [
+    {
+      "id": "windows_a11y_guidelines",
+      "name": "Windows App Accessibility Guidelines",
+      "items": [
+        {
+          "id": "WIN_UIA_NAME",
+          "content": "所有交互控件应暴露可识别 Name 属性",
+          "status": "pending",
+          "description": "",
+          "image_path": "",
+          "priority": "high",
+          "deleted": false
+        },
+        {
+          "id": "WIN_KEYBOARD",
+          "content": "核心操作流程应完整支持键盘访问",
+          "status": "pending",
+          "description": "",
+          "image_path": "",
+          "priority": "high",
+          "deleted": false
+        },
+        {
+          "id": "WIN_STATE",
+          "content": "界面状态变化需通过辅助技术播报",
+          "status": "pending",
+          "description": "",
+          "image_path": "",
+          "priority": "medium",
+          "deleted": false
+        }
+      ]
+    }
+  ],
+  "小程序": [
+    {
+      "id": "mini_program_gbt_37668",
+      "name": "GB/T 37668 小程序检查模板",
+      "items": [
+        {
+          "id": "MINI_TEXT_ALT",
+          "content": "图标与图片需提供替代描述",
+          "status": "pending",
+          "description": "",
+          "image_path": "",
+          "priority": "high",
+          "deleted": false
+        },
+        {
+          "id": "MINI_TOUCH_TARGET",
+          "content": "触控目标尺寸需满足最小可操作要求",
+          "status": "pending",
+          "description": "",
+          "image_path": "",
+          "priority": "medium",
+          "deleted": false
+        },
+        {
+          "id": "MINI_FEEDBACK",
+          "content": "操作结果应提供明确反馈信息",
+          "status": "pending",
+          "description": "",
+          "image_path": "",
+          "priority": "medium",
+          "deleted": false
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "accessible-form-assist"
+version = "0.1.0"
+description = "Desktop assistant for accessibility issue collection and report export."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "wxPython",
+    "python-docx",
+    "openpyxl",
+    "Pillow",
+    "jinja2",
+]
+
+[project.scripts]
+accessible-form-assist = "src.main:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["src*"]
+
+[tool.setuptools.package-data]
+"src.templates" = ["*.html", "*.css", "*.json"]
