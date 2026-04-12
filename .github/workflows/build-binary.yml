@@ -43,7 +43,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: accessible-form-assist-windows
+          name: accessible-form-assist-windows-run-${{ github.run_number }}
           path: dist/accessible-form-assist/**
           if-no-files-found: error
 
