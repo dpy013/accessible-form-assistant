@@ -2,12 +2,13 @@
 
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
-
-
 project_root = Path(SPECPATH)
-datas = collect_data_files("src.templates")
-hiddenimports = collect_submodules("src.templates")
+templates_dir = project_root / "src" / "templates"
+datas = [
+    (str(path), "src/templates")
+    for path in templates_dir.iterdir()
+    if path.is_file()
+]
 
 
 a = Analysis(
@@ -15,7 +16,7 @@ a = Analysis(
     pathex=[str(project_root)],
     binaries=[],
     datas=datas,
-    hiddenimports=hiddenimports,
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
