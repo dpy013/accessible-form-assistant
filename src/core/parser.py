@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from importlib.resources import files
+from pathlib import Path
 
 from src.core.project_manager import ProjectItem
 
@@ -21,7 +21,11 @@ class TemplateRepository:
 
     @classmethod
     def load_builtin(cls) -> "TemplateRepository":
-        template_file = files("src.templates").joinpath("project_templates.json")
+        template_file = (
+            Path(__file__).resolve().parent.parent
+            / "templates"
+            / "project_templates.json"
+        )
         payload = json.loads(template_file.read_text(encoding="utf-8"))
         templates: dict[str, list[TemplateDefinition]] = {}
 
