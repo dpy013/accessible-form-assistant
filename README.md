@@ -1,18 +1,18 @@
 # accessible-form-assist
 
-信息无障碍表格填写助手首版工程。
+信息无障碍表格填写助手桌面应用工程。
 
-## 当前已支持
+## 功能概览
 
 - 新建工程、打开已有工程、自动恢复最近工程
-- 支持从 HTML / Word / Excel / Jira CSV / Markdown 文件直接导入创建工程
-- `#413` 风格自动编号与项目目录初始化
-- 检查项编辑、手动新增、软删除/还原、隐藏已完成
-- 剪贴板截图落盘到 `assets/`
-- HTML / Word / Excel / Jira CSV / Markdown 导出
-- 5 分钟自动备份与未保存修改提示
+- 支持从 HTML、Word、Excel、Jira CSV、Markdown 导入创建工程
+- 使用 `#413` 风格自动生成工程编号并初始化目录
+- 支持检查项编辑、手动新增、软删除/还原、隐藏已完成
+- 支持将剪贴板截图保存到 `assets\`
+- 支持导出 HTML、Word、Excel、Jira CSV、Markdown
+- 支持 5 分钟自动备份和未保存修改提示
 
-## 运行
+## 本地运行
 
 ```powershell
 uv venv
@@ -21,7 +21,7 @@ uv pip install -r requirements.txt
 python -m src.main
 ```
 
-## 构建检查
+## 本地检查
 
 ```powershell
 scons
@@ -32,16 +32,32 @@ scons
 ```powershell
 .venv\Scripts\activate
 python -m pip install pyinstaller
-pyinstaller --clean accessible-form-assist.spec
+pyinstaller --clean --noconfirm accessible-form-assist.spec
 ```
 
-生成结果位于 `dist\accessible-form-assist\`。
+输出目录：
+
+```text
+dist\accessible-form-assist\
+```
 
 ## GitHub Actions
 
-仓库包含 `.github\workflows\build-binary.yml`，在 `main` 分支 push、pull request 和手动触发时会自动：
+仓库内置 `.github\workflows\build-binary.yml`，会在以下场景自动构建 Windows 二进制：
 
-- 安装依赖
-- 执行源码编译检查
-- 使用 PyInstaller 构建 Windows 可执行文件
-- 上传 `accessible-form-assist-windows` artifact
+- `main` 分支 push
+- pull request
+- 手动触发 `workflow_dispatch`
+
+工作流会自动执行：
+
+1. 安装依赖
+2. 执行源码编译检查
+3. 使用 PyInstaller 构建 Windows 可执行文件
+4. 上传构建产物
+
+构建产物命名格式：
+
+```text
+accessible-form-assist-windows-run-<run_number>
+```

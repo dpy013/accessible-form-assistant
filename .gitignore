@@ -3,8 +3,10 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
+accessible-form-assist.spec
 build/
 dist/
+信息无障碍表格填写助手-开发方案1.0.0.docx
 
 .accessible_form_assist.json
 
