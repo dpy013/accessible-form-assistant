@@ -13,6 +13,7 @@ from src.core.exporter import ProjectExporter
 from src.core.importer import ImportedProject, ProjectImporter
 from src.core.parser import TemplateRepository
 from src.core.project_manager import ProjectItem, ProjectManager, ProjectSession
+from src.ui.config_dialog import ProjectConfigDialog
 from src.ui.editor import ItemEditorPanel
 from src.ui.item_dialog import NewItemDialog, RemarkDialog
 from src.ui.labels import priority_label, status_label
@@ -74,6 +75,7 @@ class MainFrame(wx.Frame):
         self._build_layout()
         self._bind_alt_hook_recursively(self)
         self._build_timer()
+        self._update_project_actions()
 
         self.Bind(wx.EVT_ACTIVATE, self._on_activate)
         self.Bind(wx.EVT_CLOSE, self._on_close)
@@ -116,6 +118,7 @@ class MainFrame(wx.Frame):
         open_item = file_menu.Append(wx.ID_OPEN, "打开工程\tCtrl+O")
         close_item = file_menu.Append(wx.ID_CLOSE, "关闭工程\tCtrl+W")
         save_item = file_menu.Append(wx.ID_SAVE, "保存\tCtrl+S")
+        config_item = file_menu.Append(wx.ID_PREFERENCES, "自定义配置\tCtrl+,")
         clean_item = file_menu.Append(wx.ID_ANY, "清理工程目录")
         add_issue_item = file_menu.Append(wx.ID_ADD, "新增检查项\tCtrl+I")
         file_menu.AppendSeparator()
@@ -127,6 +130,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_open_project, open_item)
         self.Bind(wx.EVT_MENU, self.on_close_project, close_item)
         self.Bind(wx.EVT_MENU, self.on_save, save_item)
+        self.Bind(wx.EVT_MENU, self.on_edit_project_config, config_item)
         self.Bind(wx.EVT_MENU, self.on_clean_project_directory, clean_item)
         self.Bind(wx.EVT_MENU, self.on_add_item, add_issue_item)
         self.Bind(wx.EVT_MENU, self.on_restart_app, restart_item)
@@ -139,6 +143,7 @@ class MainFrame(wx.Frame):
         self.new_button = wx.Button(self.action_bar, label="新建工程")
         self.open_button = wx.Button(self.action_bar, label="打开工程")
         self.save_button = wx.Button(self.action_bar, label="保存")
+        self.config_button = wx.Button(self.action_bar, label="自定义配置")
         self.add_button = wx.Button(self.action_bar, label="新增检查项")
         self.delete_button = wx.Button(self.action_bar, label="删除")
         self.restore_button = wx.Button(self.action_bar, label="还原")
@@ -149,6 +154,7 @@ class MainFrame(wx.Frame):
             (self.new_button, "新建工程按钮"),
             (self.open_button, "打开工程按钮"),
             (self.save_button, "保存按钮"),
+            (self.config_button, "自定义配置按钮"),
             (self.add_button, "新增检查项按钮"),
             (self.delete_button, "删除按钮"),
             (self.restore_button, "还原按钮"),
@@ -162,6 +168,7 @@ class MainFrame(wx.Frame):
         self.new_button.Bind(wx.EVT_BUTTON, self.on_new_project)
         self.open_button.Bind(wx.EVT_BUTTON, self.on_open_project)
         self.save_button.Bind(wx.EVT_BUTTON, self.on_save)
+        self.config_button.Bind(wx.EVT_BUTTON, self.on_edit_project_config)
         self.add_button.Bind(wx.EVT_BUTTON, self.on_add_item)
         self.delete_button.Bind(wx.EVT_BUTTON, self.on_soft_delete)
         self.restore_button.Bind(wx.EVT_BUTTON, self.on_restore)
@@ -319,7 +326,7 @@ class MainFrame(wx.Frame):
             return
 
         result = wx.MessageBox(
-            "将清理当前工程目录中的导出文件和临时文件，并保留 project.json、assets、backup，是否继续？",
+            "将清理当前工程目录中的导出文件和临时文件，并保留 project.json、config.xml、assets、backup，是否继续？",
             "确认清理",
             wx.YES_NO | wx.CANCEL | wx.ICON_WARNING,
             self,
@@ -332,6 +339,28 @@ class MainFrame(wx.Frame):
             self.SetStatusText("当前工程目录无需清理")
             return
         self.SetStatusText(f"已清理 {len(removed)} 个项目文件")
+
+    def on_edit_project_config(self, _event: wx.Event | None = None) -> None:
+        if not self.session:
+            wx.MessageBox(
+                "请先新建或打开工程，然后再设置自定义配置。",
+                "提示",
+                wx.OK | wx.ICON_INFORMATION,
+                self,
+            )
+            return
+
+        dialog = ProjectConfigDialog(self, self.session.config)
+        if dialog.ShowModal() != wx.ID_OK:
+            dialog.Destroy()
+            return
+
+        self.session.config = dialog.build_config()
+        dialog.Destroy()
+        self._apply_project_config()
+        self.project_manager.save_config(self.session)
+        self._refresh_view(preserve_selection=True)
+        self.SetStatusText("已保存自定义配置")
 
     def on_add_item(self, _event: wx.Event | None = None) -> None:
         if not self.session:
@@ -444,6 +473,9 @@ class MainFrame(wx.Frame):
         self._refresh_view(target_item_id=item.id)
 
     def _on_filter_changed(self, _event: wx.CommandEvent) -> None:
+        self._sync_project_config_from_controls()
+        if self.session:
+            self.project_manager.save_config(self.session)
         self._refresh_view()
 
     def _on_selection_changed(self, _event: dv.DataViewEvent) -> None:
@@ -493,6 +525,7 @@ class MainFrame(wx.Frame):
         if not self.session:
             return
         self.editor.write_back()
+        self._sync_project_config_from_controls()
         self.project_manager.save_project(self.session)
         self.app_state.remember_project(self.session.root)
         self._dirty = False
@@ -503,6 +536,8 @@ class MainFrame(wx.Frame):
         self.session = session
         self.app_state.remember_project(session.root)
         self._dirty = False
+        self._apply_project_config()
+        self._update_project_actions()
         self._refresh_view(focus_list=True)
         self._update_title()
 
@@ -510,6 +545,9 @@ class MainFrame(wx.Frame):
         self.session = None
         self.view_items = []
         self._dirty = False
+        self.hide_completed.SetValue(False)
+        self.show_trash.SetValue(False)
+        self._update_project_actions()
         self.list_ctrl.DeleteAllItems()
         self.editor.load_item(None)
         self.project_hint.SetLabel("当前未打开工程。请使用上方按钮新建或打开工程。")
@@ -590,6 +628,33 @@ class MainFrame(wx.Frame):
         if row == wx.NOT_FOUND or row >= len(self.view_items):
             return None
         return self.view_items[row]
+
+    def _apply_project_config(self) -> None:
+        if not self.session:
+            return
+        self.hide_completed.SetValue(self.session.config.tool_settings.hide_completed)
+        self.show_trash.SetValue(self.session.config.tool_settings.show_trash)
+
+    def _sync_project_config_from_controls(self) -> None:
+        if not self.session:
+            return
+        self.session.config.tool_settings.hide_completed = (
+            self.hide_completed.GetValue()
+        )
+        self.session.config.tool_settings.show_trash = self.show_trash.GetValue()
+
+    def _update_project_actions(self) -> None:
+        has_session = self.session is not None
+        for control in (
+            self.save_button,
+            self.config_button,
+            self.add_button,
+            self.delete_button,
+            self.restore_button,
+            self.hide_completed,
+            self.show_trash,
+        ):
+            control.Enable(has_session)
 
     def _focus_list_row(self, row: int) -> None:
         if row < 0 or row >= len(self.view_items):

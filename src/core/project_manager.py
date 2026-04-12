@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable
+import xml.etree.ElementTree as ET
 
 from PIL import Image
 
@@ -18,6 +19,7 @@ from src.core.utils import (
 
 
 PROJECT_FILENAME = "project.json"
+CONFIG_FILENAME = "config.xml"
 
 
 @dataclass(slots=True)
@@ -59,13 +61,30 @@ class ProjectData:
 
 
 @dataclass(slots=True)
+class ToolSettings:
+    hide_completed: bool = False
+    show_trash: bool = False
+
+
+@dataclass(slots=True)
+class ProjectConfig:
+    tool_settings: ToolSettings = field(default_factory=ToolSettings)
+    custom_settings: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
 class ProjectSession:
     root: Path
     data: ProjectData
+    config: ProjectConfig = field(default_factory=ProjectConfig)
 
     @property
     def project_file(self) -> Path:
         return self.root / PROJECT_FILENAME
+
+    @property
+    def config_file(self) -> Path:
+        return self.root / CONFIG_FILENAME
 
 
 class ProjectManager:
@@ -103,13 +122,21 @@ class ProjectManager:
             json.dumps(session.data.to_dict(), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        self.save_config(session)
 
     def load_project(self, project_root: Path) -> ProjectSession:
+        config_file = project_root / CONFIG_FILENAME
         payload = json.loads(
             (project_root / PROJECT_FILENAME).read_text(encoding="utf-8")
         )
-        session = ProjectSession(root=project_root, data=ProjectData.from_dict(payload))
+        session = ProjectSession(
+            root=project_root,
+            data=ProjectData.from_dict(payload),
+            config=self.load_config(project_root),
+        )
         self._normalize_project_session(session)
+        if not config_file.exists():
+            self.save_config(session)
         return session
 
     def list_projects(self) -> list[Path]:
@@ -127,7 +154,7 @@ class ProjectManager:
         return target
 
     def clean_project_directory(self, session: ProjectSession) -> list[str]:
-        keep_names = {PROJECT_FILENAME, "assets", "backup"}
+        keep_names = {PROJECT_FILENAME, CONFIG_FILENAME, "assets", "backup"}
         removed: list[str] = []
         for entry in session.root.iterdir():
             if entry.name in keep_names:
@@ -154,6 +181,56 @@ class ProjectManager:
         pil_image.save(destination, format="JPEG", quality=85, optimize=True)
         return relative_path.as_posix()
 
+    def load_config(self, project_root: Path) -> ProjectConfig:
+        config_file = project_root / CONFIG_FILENAME
+        if not config_file.exists():
+            return ProjectConfig()
+
+        tree = ET.parse(config_file)
+        root = tree.getroot()
+        tool_settings = root.find("tool-settings")
+        custom_settings = root.find("custom-settings")
+        return ProjectConfig(
+            tool_settings=ToolSettings(
+                hide_completed=self._xml_bool(
+                    tool_settings.findtext("hide-completed")
+                    if tool_settings is not None
+                    else None
+                ),
+                show_trash=self._xml_bool(
+                    tool_settings.findtext("show-trash")
+                    if tool_settings is not None
+                    else None
+                ),
+            ),
+            custom_settings={
+                entry.get("key", "").strip(): (entry.text or "").strip()
+                for entry in custom_settings.findall("entry")
+                if entry.get("key", "").strip()
+            }
+            if custom_settings is not None
+            else {},
+        )
+
+    def save_config(self, session: ProjectSession) -> None:
+        root = ET.Element("config")
+        tool_settings = ET.SubElement(root, "tool-settings")
+        ET.SubElement(tool_settings, "hide-completed").text = self._xml_text(
+            session.config.tool_settings.hide_completed
+        )
+        ET.SubElement(tool_settings, "show-trash").text = self._xml_text(
+            session.config.tool_settings.show_trash
+        )
+
+        custom_settings = ET.SubElement(root, "custom-settings")
+        for key, value in session.config.custom_settings.items():
+            entry = ET.SubElement(custom_settings, "entry", key=key)
+            entry.text = value
+
+        tree = ET.ElementTree(root)
+        ET.indent(tree, space="  ")
+        tree.write(session.config_file, encoding="utf-8", xml_declaration=True)
+
     def _normalize_project_session(self, session: ProjectSession) -> None:
         current_number = session.data.meta.project_number or session.root.name
         normalized_number = normalize_project_number(current_number)
@@ -176,3 +253,9 @@ class ProjectManager:
 
         if changed:
             self.save_project(session)
+
+    def _xml_bool(self, value: str | None) -> bool:
+        return (value or "").strip().lower() in {"1", "true", "yes"}
+
+    def _xml_text(self, value: bool) -> str:
+        return "true" if value else "false"
