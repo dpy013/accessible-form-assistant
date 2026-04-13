@@ -3,15 +3,22 @@ from __future__ import annotations
 import csv
 import html
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
 
 from docx import Document
-from docx.table import Table
 from openpyxl import load_workbook
 
+from src.core.generic_import import items_from_rows, items_from_text_blocks
+from src.core.gbt37668 import (
+    GBT37668_HEADERS,
+    GBT37668_TEMPLATE_NAME,
+    item_from_gbt37668_mapping,
+)
 from src.core.project_manager import ProjectData, ProjectItem, ProjectMeta
+from src.core.structured_import import TableSchema, parse_tables_with_schema
 
 STATUS_MAP = {
     "pending": "pending",
@@ -33,6 +40,22 @@ PRIORITY_MAP = {
     "高": "high",
 }
 
+DEFAULT_TEMPLATES = {
+    "html": "HTML 导入",
+    "word": "Word 导入",
+    "excel": "Excel 导入",
+    "jira_csv": "CSV 导入",
+    "markdown": "Markdown 导入",
+}
+
+GENERIC_TEMPLATES = {
+    "html": "HTML 文档导入",
+    "word": "Word 文档导入",
+    "excel": "Excel 文档导入",
+    "jira_csv": "CSV 文档导入",
+    "markdown": "Markdown 文档导入",
+}
+
 
 @dataclass(slots=True)
 class ImportedProject:
@@ -40,50 +63,75 @@ class ImportedProject:
     source_format: str
 
 
-class _ReportHtmlParser(HTMLParser):
+@dataclass(slots=True)
+class DocumentContent:
+    text_blocks: list[str]
+    tables: list[list[list[str]]]
+
+
+@dataclass(frozen=True, slots=True)
+class StructuredResult:
+    items: list[ProjectItem]
+    template_name: str
+
+
+class _HtmlImportParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
-        self.in_paragraph = False
-        self.in_body_row = False
+        self.in_text_block = False
+        self.in_table = False
+        self.current_table: list[list[str]] = []
         self.current_cell: list[str] = []
         self.current_row: list[str] = []
-        self.paragraphs: list[str] = []
-        self.rows: list[list[str]] = []
+        self.text_buffer: list[str] = []
+        self.text_blocks: list[str] = []
+        self.tables: list[list[list[str]]] = []
         self._cell_depth = 0
 
     def handle_starttag(self, tag: str, attrs) -> None:
-        if tag == "p":
-            self.in_paragraph = True
-        elif tag == "tr":
-            attrs_dict = dict(attrs)
-            self.in_body_row = "status-" in attrs_dict.get("class", "")
-            if self.in_body_row:
-                self.current_row = []
-        elif tag == "td" and self.in_body_row:
+        if tag in {"p", "li", "h1", "h2", "h3", "h4", "h5", "h6"}:
+            self.in_text_block = True
+            self.text_buffer = []
+        elif tag == "table":
+            self.in_table = True
+            self.current_table = []
+        elif tag == "tr" and self.in_table:
+            self.current_row = []
+        elif tag in {"td", "th"} and self.in_table:
             self._cell_depth += 1
-            self.current_cell = []
+            if self._cell_depth == 1:
+                self.current_cell = []
         elif tag == "br" and self._cell_depth:
             self.current_cell.append("\n")
+        elif tag == "br" and self.in_text_block:
+            self.text_buffer.append("\n")
 
     def handle_endtag(self, tag: str) -> None:
-        if tag == "p":
-            self.in_paragraph = False
-        elif tag == "td" and self._cell_depth:
+        if tag in {"p", "li", "h1", "h2", "h3", "h4", "h5", "h6"}:
+            text = "".join(self.text_buffer).strip()
+            if text:
+                self.text_blocks.append(text)
+            self.in_text_block = False
+            self.text_buffer = []
+        elif tag in {"td", "th"} and self._cell_depth:
             self._cell_depth -= 1
-            self.current_row.append("".join(self.current_cell).strip())
-            self.current_cell = []
-        elif tag == "tr" and self.in_body_row:
-            self.rows.append(self.current_row)
+            if self._cell_depth == 0:
+                self.current_row.append("".join(self.current_cell).strip())
+                self.current_cell = []
+        elif tag == "tr" and self.in_table:
+            if self.current_row and any(cell.strip() for cell in self.current_row):
+                self.current_table.append(self.current_row)
             self.current_row = []
-            self.in_body_row = False
+        elif tag == "table" and self.in_table:
+            if self.current_table:
+                self.tables.append(self.current_table)
+            self.current_table = []
+            self.in_table = False
 
     def handle_data(self, data: str) -> None:
         text = html.unescape(data)
-        if self.in_paragraph and text.strip():
-            if self.paragraphs and not self.paragraphs[-1].endswith("\n"):
-                self.paragraphs[-1] += text
-            else:
-                self.paragraphs.append(text)
+        if self.in_text_block:
+            self.text_buffer.append(text)
         elif self._cell_depth:
             self.current_cell.append(text)
 
@@ -94,7 +142,7 @@ class ProjectImporter:
             "html": self._import_html,
             "word": self._import_word,
             "excel": self._import_excel,
-            "jira_csv": self._import_jira_csv,
+            "jira_csv": self._import_csv,
             "markdown": self._import_markdown,
         }
         try:
@@ -104,151 +152,175 @@ class ProjectImporter:
         return handler(path)
 
     def _import_html(self, path: Path) -> ImportedProject:
-        parser = _ReportHtmlParser()
+        parser = _HtmlImportParser()
         parser.feed(path.read_text(encoding="utf-8"))
-        meta = self._meta_from_paragraphs(parser.paragraphs, path)
-        items = [self._item_from_row(row) for row in parser.rows if len(row) >= 6]
-        return ImportedProject(ProjectData(meta=meta, items=items), "html")
+        content = DocumentContent(text_blocks=parser.text_blocks, tables=parser.tables)
+        return self._build_project(path, "html", content)
 
     def _import_word(self, path: Path) -> ImportedProject:
         document = Document(path)
-        title_paragraphs = [
+        text_blocks = [
             paragraph.text.strip()
             for paragraph in document.paragraphs
             if paragraph.text.strip()
         ]
-        meta = self._meta_from_paragraphs(title_paragraphs, path)
-        report_items: list[ProjectItem] = []
-        standard_items: list[ProjectItem] = []
-        for table in document.tables:
-            if self._is_word_report_table(table):
-                report_items.extend(self._report_items_from_word_table(table))
-                continue
-            if self._is_word_standard_table(table):
-                start_index = len(standard_items) + 1
-                standard_items.extend(
-                    self._standard_items_from_word_table(table, start_index)
-                )
-
-        items = report_items or standard_items
-        if standard_items and meta.template == f"{path.suffix} 导入":
-            meta.template = "GB/T 37668 指标导入"
-        return ImportedProject(ProjectData(meta=meta, items=items), "word")
+        tables = [[self._row_values(row) for row in table.rows] for table in document.tables]
+        content = DocumentContent(text_blocks=text_blocks, tables=tables)
+        return self._build_project(path, "word", content)
 
     def _import_excel(self, path: Path) -> ImportedProject:
-        workbook = load_workbook(path)
-        sheet = workbook.active
-        rows = list(sheet.iter_rows(values_only=True))
-        items: list[ProjectItem] = []
-        for row in rows[1:]:
-            if not row or not row[0]:
-                continue
-            values = [self._string(value) for value in row]
-            while len(values) < 6:
-                values.append("")
-            items.append(
-                ProjectItem(
-                    id=values[0],
-                    content=values[1],
-                    status=self._normalize_status(values[2]),
-                    priority=self._normalize_priority(values[3]),
-                    description=self._normalize_empty(values[4]),
-                    image_path=self._normalize_empty(values[5]),
-                )
-            )
+        workbook = load_workbook(path, data_only=True)
+        text_blocks = [sheet.title for sheet in workbook.worksheets if sheet.title.strip()]
+        tables = [
+            [
+                [self._string(value).strip() for value in row]
+                for row in sheet.iter_rows(values_only=True)
+            ]
+            for sheet in workbook.worksheets
+        ]
+        content = DocumentContent(text_blocks=text_blocks, tables=tables)
+        return self._build_project(path, "excel", content)
 
-        meta = ProjectMeta(
-            project_number="",
-            created_time="",
-            scenario="导入",
-            template="Excel 导入",
-            project_name=path.stem,
-        )
-        return ImportedProject(ProjectData(meta=meta, items=items), "excel")
-
-    def _import_jira_csv(self, path: Path) -> ImportedProject:
-        items: list[ProjectItem] = []
+    def _import_csv(self, path: Path) -> ImportedProject:
         with path.open("r", encoding="utf-8-sig", newline="") as handle:
-            reader = csv.DictReader(handle)
-            for index, row in enumerate(reader, start=1):
-                summary = (row.get("Summary") or "").strip()
-                description = (row.get("Description") or "").strip()
-                priority = self._normalize_priority((row.get("Priority") or "").strip())
-                item_id, content = self._parse_jira_summary(summary, index)
-                items.append(
-                    ProjectItem(
-                        id=item_id,
-                        content=content,
-                        status="failed",
-                        priority=priority,
-                        description=description,
-                    )
-                )
-
-        meta = ProjectMeta(
-            project_number="",
-            created_time="",
-            scenario="导入",
-            template="Jira CSV 导入",
-            project_name=path.stem,
-        )
-        return ImportedProject(ProjectData(meta=meta, items=items), "jira_csv")
+            rows = list(csv.reader(handle))
+        content = DocumentContent(text_blocks=[], tables=[rows] if rows else [])
+        return self._build_project(path, "jira_csv", content)
 
     def _import_markdown(self, path: Path) -> ImportedProject:
-        text = path.read_text(encoding="utf-8")
-        lines = [line.rstrip() for line in text.splitlines()]
-        meta = self._meta_from_markdown(lines, path)
-        items: list[ProjectItem] = []
-        for line in lines:
-            if not line.startswith("|") or line.startswith("| ---"):
-                continue
-            columns = [column.strip() for column in line.strip("|").split("|")]
-            if columns[:2] == ["ID", "内容"] or len(columns) < 6:
-                continue
-            items.append(
-                ProjectItem(
-                    id=columns[0],
-                    content=columns[1],
-                    status=self._normalize_status(columns[2]),
-                    priority=self._normalize_priority(columns[3]),
-                    description=self._normalize_empty(columns[4]),
-                    image_path=self._normalize_empty(columns[5]),
-                )
-            )
-        return ImportedProject(ProjectData(meta=meta, items=items), "markdown")
+        lines = path.read_text(encoding="utf-8").splitlines()
+        content = DocumentContent(
+            text_blocks=self._markdown_text_blocks(lines),
+            tables=self._markdown_tables(lines),
+        )
+        return self._build_project(path, "markdown", content)
 
-    def _meta_from_paragraphs(self, paragraphs: list[str], path: Path) -> ProjectMeta:
-        merged = "\n".join(paragraphs)
+    def _build_project(
+        self, path: Path, source_format: str, content: DocumentContent
+    ) -> ImportedProject:
+        default_template = DEFAULT_TEMPLATES[source_format]
+        meta = self._meta_from_text_blocks(content.text_blocks, path, default_template)
+
+        structured = self._parse_structured_tables(content.tables)
+        if structured:
+            items = structured.items
+            if meta.template == default_template:
+                meta.template = structured.template_name
+        else:
+            items = self._generic_items_from_content(content, source_format)
+            if items and meta.template == default_template:
+                meta.template = GENERIC_TEMPLATES[source_format]
+
+        return ImportedProject(ProjectData(meta=meta, items=items), source_format)
+
+    def _parse_structured_tables(
+        self, tables: Sequence[Sequence[Sequence[str]]]
+    ) -> StructuredResult | None:
+        for schema in self._table_schemas():
+            items = parse_tables_with_schema(tables, schema)
+            if items:
+                return StructuredResult(
+                    items=items,
+                    template_name=schema.template_name or "结构化导入",
+                )
+        return None
+
+    def _generic_items_from_content(
+        self, content: DocumentContent, source_format: str
+    ) -> list[ProjectItem]:
+        table_items: list[ProjectItem] = []
+        for index, table in enumerate(content.tables, start=1):
+            prefix = self._generic_row_prefix(source_format, index)
+            table_items.extend(items_from_rows(table, prefix=prefix))
+        if table_items:
+            return table_items
+        return items_from_text_blocks(
+            content.text_blocks, prefix=self._generic_text_prefix(source_format)
+        )
+
+    def _table_schemas(self) -> list[TableSchema]:
+        return [
+            TableSchema(
+                name="report-check-item",
+                required_headers=("ID", "检查项", "状态", "优先级", "描述"),
+                row_factory=self._report_item_from_mapping,
+                template_name="检查报告导入",
+            ),
+            TableSchema(
+                name="report-content",
+                required_headers=("ID", "内容", "状态", "优先级", "描述"),
+                row_factory=self._report_item_from_mapping,
+                template_name="检查报告导入",
+            ),
+            TableSchema(
+                name="gbt37668",
+                required_headers=tuple(GBT37668_HEADERS),
+                row_factory=self._gbt37668_item_from_mapping,
+                template_name=GBT37668_TEMPLATE_NAME,
+            ),
+            TableSchema(
+                name="jira",
+                required_headers=("Summary", "Description", "Priority"),
+                row_factory=self._jira_item_from_mapping,
+                template_name="Jira CSV 导入",
+            ),
+        ]
+
+    def _meta_from_text_blocks(
+        self, text_blocks: Sequence[str], path: Path, default_template: str
+    ) -> ProjectMeta:
+        merged = "\n".join(text_blocks)
         return ProjectMeta(
             project_number=self._extract_value(merged, "项目编号"),
             created_time=self._extract_value(merged, "创建时间"),
             scenario=self._extract_value(merged, "场景") or "导入",
-            template=self._extract_value(merged, "模板") or f"{path.suffix} 导入",
-            project_name=self._extract_value(merged, "工程名称") or path.stem,
-        )
-
-    def _meta_from_markdown(self, lines: list[str], path: Path) -> ProjectMeta:
-        content = "\n".join(lines)
-        return ProjectMeta(
-            project_number=self._extract_value(content, "项目编号"),
-            created_time="",
-            scenario=self._extract_value(content, "场景") or "导入",
-            template=self._extract_value(content, "模板") or "Markdown 导入",
-            project_name=self._extract_value(content, "名称") or path.stem,
+            template=self._extract_value(merged, "模板") or default_template,
+            project_name=(
+                self._extract_value(merged, "工程名称")
+                or self._extract_value(merged, "名称")
+                or path.stem
+            ),
         )
 
     def _extract_value(self, text: str, label: str) -> str:
         match = re.search(rf"{re.escape(label)}[:：]\s*([^\n｜|]+)", text)
         return match.group(1).strip() if match else ""
 
-    def _item_from_row(self, row: list[str]) -> ProjectItem:
+    def _report_item_from_mapping(
+        self, row: Mapping[str, str], _index: int
+    ) -> ProjectItem | None:
+        item_id = self._mapped_value(row, "ID")
+        content = self._mapped_value(row, "检查项", "内容")
+        if not item_id and not content:
+            return None
         return ProjectItem(
-            id=row[0],
-            content=row[1],
-            status=self._normalize_status(row[2]),
-            priority=self._normalize_priority(row[3]),
-            description=self._normalize_empty(row[4]),
-            image_path=self._normalize_empty(row[5]),
+            id=item_id or "IMPORT",
+            content=content or "导入内容",
+            status=self._normalize_status(self._mapped_value(row, "状态")),
+            priority=self._normalize_priority(self._mapped_value(row, "优先级")),
+            description=self._normalize_empty(self._mapped_value(row, "描述")),
+            image_path=self._normalize_empty(self._mapped_value(row, "截图", "图片")),
+        )
+
+    def _gbt37668_item_from_mapping(
+        self, row: Mapping[str, str], index: int
+    ) -> ProjectItem | None:
+        return item_from_gbt37668_mapping(row, index)
+
+    def _jira_item_from_mapping(
+        self, row: Mapping[str, str], index: int
+    ) -> ProjectItem | None:
+        summary = self._mapped_value(row, "Summary")
+        description = self._mapped_value(row, "Description")
+        if not summary and not description:
+            return None
+        item_id, content = self._parse_jira_summary(summary, index)
+        return ProjectItem(
+            id=item_id,
+            content=content,
+            status="failed",
+            priority=self._normalize_priority(self._mapped_value(row, "Priority")),
+            description=description,
         )
 
     def _parse_jira_summary(self, summary: str, index: int) -> tuple[str, str]:
@@ -258,104 +330,68 @@ class ProjectImporter:
             return match.group(1), match.group(2).strip()
         return f"IMPORT_{index:03d}", cleaned or f"导入问题 {index}"
 
-    def _is_word_report_table(self, table: Table) -> bool:
-        if not table.rows:
-            return False
-        header = self._row_values(table.rows[0])
-        return len(header) >= 5 and header[:5] == [
-            "ID",
-            "检查项",
-            "状态",
-            "优先级",
-            "描述",
-        ]
+    def _mapped_value(self, row: Mapping[str, str], *keys: str) -> str:
+        for key in keys:
+            value = self._string(row.get(key, "")).strip()
+            if value:
+                return value
+        return ""
 
-    def _is_word_standard_table(self, table: Table) -> bool:
-        if len(table.rows) < 2:
-            return False
-        header = self._row_values(table.rows[1])
-        return len(header) >= 6 and header[:6] == [
-            "原则",
-            "准则",
-            "指标",
-            "一级",
-            "二级",
-            "三级",
-        ]
-
-    def _report_items_from_word_table(self, table: Table) -> list[ProjectItem]:
-        items: list[ProjectItem] = []
-        for row in table.rows[1:]:
-            values = self._row_values(row)
-            while len(values) < 5:
-                values.append("")
-            if not any(values[:5]):
+    def _markdown_tables(self, lines: Sequence[str]) -> list[list[list[str]]]:
+        tables: list[list[list[str]]] = []
+        current_table: list[list[str]] = []
+        for line in lines:
+            stripped = line.strip()
+            if not stripped.startswith("|"):
+                if current_table:
+                    tables.append(current_table)
+                    current_table = []
                 continue
-            items.append(
-                ProjectItem(
-                    id=values[0],
-                    content=values[1],
-                    status=self._normalize_status(values[2]),
-                    priority=self._normalize_priority(values[3]),
-                    description=self._normalize_empty(values[4]),
-                )
+            if self._is_markdown_separator(stripped):
+                continue
+            current_table.append(
+                [column.strip() for column in stripped.strip("|").split("|")]
             )
-        return items
+        if current_table:
+            tables.append(current_table)
+        return tables
 
-    def _standard_items_from_word_table(
-        self, table: Table, start_index: int
-    ) -> list[ProjectItem]:
-        items: list[ProjectItem] = []
-        for offset, row in enumerate(table.rows[2:]):
-            values = self._row_values(row)
-            while len(values) < 6:
-                values.append("")
-            if not any(values[:3]) or not values[2]:
+    def _markdown_text_blocks(self, lines: Sequence[str]) -> list[str]:
+        blocks: list[str] = []
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("|"):
                 continue
-            items.append(self._word_standard_item_from_row(values, start_index + offset))
-        return items
+            stripped = re.sub(r"^#{1,6}\s*", "", stripped)
+            stripped = re.sub(r"^[-*+]\s+", "", stripped)
+            if stripped:
+                blocks.append(stripped)
+        return blocks
 
-    def _word_standard_item_from_row(
-        self, row: list[str], index: int
-    ) -> ProjectItem:
-        principle, guideline, indicator = row[:3]
-        level_labels = ["一级", "二级", "三级"]
-        level_markers = [value.strip() for value in row[3:6]]
-        applicable_levels = [
-            label for label, marker in zip(level_labels, level_markers) if marker
-        ]
-        raw_level_marks = [
-            f"{label}={marker}"
-            for label, marker in zip(level_labels, level_markers)
-            if marker
-        ]
-
-        description_lines = []
-        if principle:
-            description_lines.append(f"原则：{principle}")
-        if guideline:
-            description_lines.append(f"准则：{guideline}")
-        if applicable_levels:
-            description_lines.append(f"适用等级：{'、'.join(applicable_levels)}")
-        if raw_level_marks:
-            description_lines.append(f"等级标记：{'；'.join(raw_level_marks)}")
-
-        return ProjectItem(
-            id=f"GBT37668_{index:03d}",
-            content=f"{indicator}（{principle} / {guideline}）",
-            status="pending",
-            priority=self._priority_from_level_markers(level_markers),
-            description="\n".join(description_lines),
+    def _is_markdown_separator(self, line: str) -> bool:
+        columns = [column.strip() for column in line.strip("|").split("|")]
+        return bool(columns) and all(
+            column and set(column) <= {"-", ":"} for column in columns
         )
 
-    def _priority_from_level_markers(self, markers: list[str]) -> str:
-        if len(markers) >= 1 and markers[0]:
-            return "high"
-        if len(markers) >= 2 and markers[1]:
-            return "medium"
-        if len(markers) >= 3 and markers[2]:
-            return "low"
-        return "medium"
+    def _generic_row_prefix(self, source_format: str, table_index: int) -> str:
+        base = {
+            "html": "HTMLROW",
+            "word": "WORDTBL",
+            "excel": "XLSX",
+            "jira_csv": "CSV",
+            "markdown": "MDTBL",
+        }[source_format]
+        return f"{base}_{table_index:02d}"
+
+    def _generic_text_prefix(self, source_format: str) -> str:
+        return {
+            "html": "HTML",
+            "word": "WORD",
+            "excel": "XLSX",
+            "jira_csv": "CSV",
+            "markdown": "MD",
+        }[source_format]
 
     def _normalize_status(self, value: str) -> str:
         return STATUS_MAP.get(value.strip(), "pending")

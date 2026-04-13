@@ -3,6 +3,7 @@ from __future__ import annotations
 import ctypes
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import wx
@@ -22,6 +23,7 @@ from src.ui.wizard import NewProjectWizard
 WM_SYSCOMMAND = 0x0112
 SC_KEYMENU = 0xF100
 GUI_INMENUMODE = 0x00000004
+MenuHandler = Callable[[wx.Event | None], None]
 
 
 class RECT(ctypes.Structure):
@@ -90,32 +92,20 @@ class MainFrame(wx.Frame):
         file_menu = wx.Menu()
         new_menu = wx.Menu()
         new_item = new_menu.Append(wx.ID_NEW, "新建工程\tCtrl+N")
-        import_actions = {
-            "从 HTML 创建工程": self.on_import_html,
-            "从 Word 创建工程": self.on_import_word,
-            "从 Excel 创建工程": self.on_import_excel,
-            "从 Jira CSV 创建工程": self.on_import_jira_csv,
-            "从 Markdown 创建工程": self.on_import_markdown,
-        }
-        for label, handler in import_actions.items():
-            menu_item = new_menu.Append(wx.ID_ANY, label)
-            self.Bind(wx.EVT_MENU, handler, menu_item)
+        self._append_menu_actions(new_menu, self._new_project_file_actions())
         file_menu.AppendSubMenu(new_menu, "新建")
 
+        open_menu = wx.Menu()
+        open_project_item = open_menu.Append(wx.ID_OPEN, "打开已有工程\tCtrl+O")
+        self.Bind(wx.EVT_MENU, self.on_open_project, open_project_item)
+        open_menu.AppendSeparator()
+        self._append_menu_actions(open_menu, self._open_file_actions())
+        file_menu.AppendSubMenu(open_menu, "打开")
+
         export_menu = wx.Menu()
-        export_actions = {
-            "导出 HTML": self.on_export_html,
-            "导出 Word": self.on_export_word,
-            "导出 Excel": self.on_export_excel,
-            "导出 Jira CSV": self.on_export_jira_csv,
-            "导出 Markdown": self.on_export_markdown,
-        }
-        for label, handler in export_actions.items():
-            menu_item = export_menu.Append(wx.ID_ANY, label)
-            self.Bind(wx.EVT_MENU, handler, menu_item)
+        self._append_menu_actions(export_menu, self._export_actions())
         file_menu.AppendSubMenu(export_menu, "导出")
         file_menu.AppendSeparator()
-        open_item = file_menu.Append(wx.ID_OPEN, "打开工程\tCtrl+O")
         close_item = file_menu.Append(wx.ID_CLOSE, "关闭工程\tCtrl+W")
         save_item = file_menu.Append(wx.ID_SAVE, "保存\tCtrl+S")
         config_item = file_menu.Append(wx.ID_PREFERENCES, "自定义配置\tCtrl+,")
@@ -127,7 +117,6 @@ class MainFrame(wx.Frame):
         menu_bar.Append(file_menu, "文件")
 
         self.Bind(wx.EVT_MENU, self.on_new_project, new_item)
-        self.Bind(wx.EVT_MENU, self.on_open_project, open_item)
         self.Bind(wx.EVT_MENU, self.on_close_project, close_item)
         self.Bind(wx.EVT_MENU, self.on_save, save_item)
         self.Bind(wx.EVT_MENU, self.on_edit_project_config, config_item)
@@ -141,7 +130,7 @@ class MainFrame(wx.Frame):
         self.action_bar = wx.Panel(self)
         action_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.new_button = wx.Button(self.action_bar, label="新建工程")
-        self.open_button = wx.Button(self.action_bar, label="打开工程")
+        self.open_button = wx.Button(self.action_bar, label="打开")
         self.save_button = wx.Button(self.action_bar, label="保存")
         self.config_button = wx.Button(self.action_bar, label="自定义配置")
         self.add_button = wx.Button(self.action_bar, label="新增检查项")
@@ -152,7 +141,7 @@ class MainFrame(wx.Frame):
 
         for control, accessible_name in (
             (self.new_button, "新建工程按钮"),
-            (self.open_button, "打开工程按钮"),
+            (self.open_button, "打开按钮"),
             (self.save_button, "保存按钮"),
             (self.config_button, "自定义配置按钮"),
             (self.add_button, "新增检查项按钮"),
@@ -166,7 +155,7 @@ class MainFrame(wx.Frame):
 
         self.action_bar.SetSizer(action_sizer)
         self.new_button.Bind(wx.EVT_BUTTON, self.on_new_project)
-        self.open_button.Bind(wx.EVT_BUTTON, self.on_open_project)
+        self.open_button.Bind(wx.EVT_BUTTON, self.on_open_menu)
         self.save_button.Bind(wx.EVT_BUTTON, self.on_save)
         self.config_button.Bind(wx.EVT_BUTTON, self.on_edit_project_config)
         self.add_button.Bind(wx.EVT_BUTTON, self.on_add_item)
@@ -181,7 +170,7 @@ class MainFrame(wx.Frame):
 
         left_sizer = wx.BoxSizer(wx.VERTICAL)
         self.project_hint = wx.StaticText(
-            left_panel, label="当前未打开工程。请使用上方按钮新建或打开工程。"
+            left_panel, label="当前未打开工程。请使用上方按钮新建、打开工程或打开文件创建工程。"
         )
         self.project_hint.SetName("当前工程说明")
         summary_panel = wx.Panel(left_panel)
@@ -260,6 +249,40 @@ class MainFrame(wx.Frame):
                 self.SetStatusText("最近工程恢复失败，请重新选择。")
         self.SetStatusText("当前未打开工程。可按 Alt+F 使用菜单，或使用窗口顶部按钮。")
 
+    def _append_menu_actions(
+        self, menu: wx.Menu, actions: list[tuple[str, MenuHandler]]
+    ) -> None:
+        for label, handler in actions:
+            menu_item = menu.Append(wx.ID_ANY, label)
+            self.Bind(wx.EVT_MENU, handler, menu_item)
+
+    def _new_project_file_actions(self) -> list[tuple[str, MenuHandler]]:
+        return [
+            (f"从 {label} 创建工程", import_handler)
+            for label, import_handler, _export_handler in self._file_format_actions()
+        ]
+
+    def _open_file_actions(self) -> list[tuple[str, MenuHandler]]:
+        return [
+            (f"打开 {label} 文件创建工程", import_handler)
+            for label, import_handler, _export_handler in self._file_format_actions()
+        ]
+
+    def _export_actions(self) -> list[tuple[str, MenuHandler]]:
+        return [
+            (f"导出 {label}", export_handler)
+            for label, _import_handler, export_handler in self._file_format_actions()
+        ]
+
+    def _file_format_actions(self) -> list[tuple[str, MenuHandler, MenuHandler]]:
+        return [
+            ("HTML", self.on_import_html, self.on_export_html),
+            ("Word", self.on_import_word, self.on_export_word),
+            ("Excel", self.on_import_excel, self.on_export_excel),
+            ("CSV", self.on_import_jira_csv, self.on_export_jira_csv),
+            ("Markdown", self.on_import_markdown, self.on_export_markdown),
+        ]
+
     def on_new_project(self, _event: wx.Event | None = None) -> None:
         if not self._can_discard_or_save_changes():
             return
@@ -307,6 +330,23 @@ class MainFrame(wx.Frame):
             wx.MessageBox(f"打开工程失败：{exc}", "错误", wx.OK | wx.ICON_ERROR, self)
             return
         self._load_session(session)
+
+    def on_open_menu(self, _event: wx.Event | None = None) -> None:
+        menu = wx.Menu()
+        open_project_item = menu.Append(wx.ID_OPEN, "打开已有工程")
+        menu.Bind(wx.EVT_MENU, self.on_open_project, open_project_item)
+        menu.AppendSeparator()
+        for label, handler in self._open_file_actions():
+            menu_item = menu.Append(wx.ID_ANY, label)
+            menu.Bind(wx.EVT_MENU, handler, menu_item)
+
+        button_position = self.open_button.GetPosition()
+        button_size = self.open_button.GetSize()
+        popup_position = wx.Point(
+            button_position.x, button_position.y + button_size.height
+        )
+        self.action_bar.PopupMenu(menu, popup_position)
+        menu.Destroy()
 
     def on_save(self, _event: wx.Event | None = None) -> None:
         if not self.session:
@@ -550,7 +590,9 @@ class MainFrame(wx.Frame):
         self._update_project_actions()
         self.list_ctrl.DeleteAllItems()
         self.editor.load_item(None)
-        self.project_hint.SetLabel("当前未打开工程。请使用上方按钮新建或打开工程。")
+        self.project_hint.SetLabel(
+            "当前未打开工程。请使用上方按钮新建、打开工程或打开文件创建工程。"
+        )
         self._update_summary()
         self._update_title()
 

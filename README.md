@@ -4,13 +4,16 @@
 
 ## 功能概览
 
-- 新建工程、打开已有工程、自动恢复最近工程
-- 支持从 HTML、Word、Excel、Jira CSV、Markdown 导入创建工程
+- 新建工程、打开已有工程、打开文件创建工程、自动恢复最近工程
+- 支持从 HTML、Word、Excel、CSV、Markdown 导入创建工程
+- 各格式统一走通用解析流程，专用模板也通过表头规则接入同一套解析器
+- 普通文档若不符合专用模板，也会按段落或表格行兜底导入为项目列表
+- GB/T 37668 指标表可通过 HTML、Word、Excel、CSV、Markdown 导入，并统一转换为检查项
 - 使用 `#413` 风格自动生成工程编号并初始化目录
 - 支持检查项编辑、手动新增、软删除/还原、隐藏已完成
 - 支持独立项目配置，工具设置和自定义键值配置保存到 `config.xml`
 - 支持将剪贴板截图保存到 `assets\`
-- 支持导出 HTML、Word、Excel、Jira CSV、Markdown
+- 支持导出 HTML、Word、Excel、CSV、Markdown
 - 支持 5 分钟自动备份和未保存修改提示
 
 ## 本地运行
