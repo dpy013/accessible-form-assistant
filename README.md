@@ -18,8 +18,10 @@
 
 ## 本地运行
 
+建议使用 Python 3.14.4。
+
 ```powershell
-uv venv
+uv venv --python 3.14.4
 .venv\Scripts\activate
 uv pip install -r requirements.txt
 python -m src.main
@@ -32,6 +34,8 @@ scons
 ```
 
 ## 打包 Windows 可执行文件
+
+建议使用 Python 3.14.4。
 
 ```powershell
 .venv\Scripts\activate
