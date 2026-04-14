@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Desktop assistant for accessibility issue collection and report export."
 readme = "README.md"
 requires-python = ">=3.14"
-license = "MIT"
+license = { text = "MIT" }
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: Microsoft :: Windows",
