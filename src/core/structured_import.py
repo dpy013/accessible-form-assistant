@@ -23,17 +23,17 @@ def parse_tables_with_schema(
     start_index: int = 1,
 ) -> list[ProjectItem]:
     items: list[ProjectItem] = []
+    next_index = start_index
     for table in tables:
         header_row_index = _find_header_row_index(table, schema.required_headers)
         if header_row_index is None:
             continue
 
         headers = [_normalize_cell(value) for value in table[header_row_index]]
-        for offset, row in enumerate(
-            table[header_row_index + 1 :], start=len(items) + start_index
-        ):
+        for row in table[header_row_index + 1 :]:
             mapping = _row_mapping(headers, row)
-            item = schema.row_factory(mapping, offset)
+            item = schema.row_factory(mapping, next_index)
+            next_index += 1
             if item:
                 items.append(item)
     return items

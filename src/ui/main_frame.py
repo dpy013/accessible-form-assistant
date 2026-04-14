@@ -524,6 +524,8 @@ class MainFrame(wx.Frame):
         self.editor.load_item(self._selected_item())
 
     def _on_list_context_menu(self, _event: wx.ContextMenuEvent) -> None:
+        if not self._select_context_menu_row(_event):
+            return
         item = self._selected_item()
         if not item:
             return
@@ -560,7 +562,13 @@ class MainFrame(wx.Frame):
             return
         self.editor.write_back()
         self._dirty = True
-        self._refresh_view(preserve_selection=True)
+        current_item = self.editor.current_item
+        if current_item and self._item_visible(current_item):
+            self._sync_list_row(current_item)
+            self._update_summary()
+            self._update_title()
+        else:
+            self._refresh_view(preserve_selection=True)
         self.SetStatusText("有未保存修改")
 
     def _save_session(self, status_message: str = "已保存") -> None:
@@ -672,6 +680,41 @@ class MainFrame(wx.Frame):
         if row == wx.NOT_FOUND or row >= len(self.view_items):
             return None
         return self.view_items[row]
+
+    def _select_context_menu_row(self, event: wx.ContextMenuEvent) -> bool:
+        position = event.GetPosition()
+        if position != wx.DefaultPosition:
+            item, _column = self.list_ctrl.HitTest(self.list_ctrl.ScreenToClient(position))
+            if item and item.IsOk():
+                row = self.list_ctrl.ItemToRow(item)
+                if row != wx.NOT_FOUND and row < len(self.view_items):
+                    self.list_ctrl.UnselectAll()
+                    self.list_ctrl.SelectRow(row)
+        return self._selected_item() is not None
+
+    def _item_visible(self, item: ProjectItem) -> bool:
+        if self.hide_completed.GetValue() and item.status == "passed":
+            return False
+        if self.show_trash.GetValue():
+            return item.deleted
+        return not item.deleted
+
+    def _sync_list_row(self, item: ProjectItem) -> None:
+        row = self.list_ctrl.GetSelectedRow()
+        if row == wx.NOT_FOUND or row >= len(self.view_items):
+            return
+        if self.view_items[row] is not item:
+            self._refresh_view(preserve_selection=True)
+            return
+        values = [
+            item.id,
+            item.content,
+            status_label(item.status),
+            priority_label(item.priority),
+            item.image_path or "-",
+        ]
+        for column, value in enumerate(values):
+            self.list_ctrl.SetTextValue(value, row, column)
 
     def _apply_project_config(self) -> None:
         if not self.session:

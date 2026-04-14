@@ -76,6 +76,8 @@ class StructuredResult:
 
 
 class _HtmlImportParser(HTMLParser):
+    _BLOCK_TAGS = {"div", "p", "li", "h1", "h2", "h3", "h4", "h5", "h6"}
+
     def __init__(self) -> None:
         super().__init__()
         self.in_text_block = False
@@ -89,7 +91,7 @@ class _HtmlImportParser(HTMLParser):
         self._cell_depth = 0
 
     def handle_starttag(self, tag: str, attrs) -> None:
-        if tag in {"p", "li", "h1", "h2", "h3", "h4", "h5", "h6"}:
+        if tag in self._BLOCK_TAGS and not self._cell_depth:
             self.in_text_block = True
             self.text_buffer = []
         elif tag == "table":
@@ -107,7 +109,9 @@ class _HtmlImportParser(HTMLParser):
             self.text_buffer.append("\n")
 
     def handle_endtag(self, tag: str) -> None:
-        if tag in {"p", "li", "h1", "h2", "h3", "h4", "h5", "h6"}:
+        if tag in self._BLOCK_TAGS and self._cell_depth:
+            self._append_cell_break()
+        elif tag in self._BLOCK_TAGS:
             text = "".join(self.text_buffer).strip()
             if text:
                 self.text_blocks.append(text)
@@ -134,6 +138,10 @@ class _HtmlImportParser(HTMLParser):
             self.text_buffer.append(text)
         elif self._cell_depth:
             self.current_cell.append(text)
+
+    def _append_cell_break(self) -> None:
+        if self.current_cell and not self.current_cell[-1].endswith("\n"):
+            self.current_cell.append("\n")
 
 
 class ProjectImporter:
@@ -429,7 +437,8 @@ class ProjectImporter:
         }[source_format]
 
     def _normalize_status(self, value: str) -> str:
-        return STATUS_MAP.get(value.strip(), "pending")
+        cleaned = value.strip()
+        return STATUS_MAP.get(cleaned.lower(), STATUS_MAP.get(cleaned, "pending"))
 
     def _normalize_priority(self, value: str) -> str:
         return PRIORITY_MAP.get(

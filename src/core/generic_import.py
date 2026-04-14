@@ -37,10 +37,8 @@ def items_from_text_blocks(
 def items_from_rows(
     rows: Sequence[Sequence[str]], prefix: str = "ROW"
 ) -> list[ProjectItem]:
-    normalized_rows = [
-        [str(value).strip() for value in row if str(value).strip()] for row in rows
-    ]
-    normalized_rows = [row for row in normalized_rows if row]
+    normalized_rows = [[str(value).strip() for value in row] for row in rows]
+    normalized_rows = [row for row in normalized_rows if any(cell for cell in row)]
     if not normalized_rows:
         return []
 
@@ -48,7 +46,10 @@ def items_from_rows(
     items: list[ProjectItem] = []
     for index, row in enumerate(data_rows, start=1):
         if header:
-            pairs = list(zip(header, row))
+            pairs = [
+                (label, row[position] if position < len(row) else "")
+                for position, label in enumerate(header)
+            ]
             content = next(
                 (f"{label}：{value}" for label, value in pairs if value),
                 "导入内容",
