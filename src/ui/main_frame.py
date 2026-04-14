@@ -684,7 +684,9 @@ class MainFrame(wx.Frame):
     def _select_context_menu_row(self, event: wx.ContextMenuEvent) -> bool:
         position = event.GetPosition()
         if position != wx.DefaultPosition:
-            item, _column = self.list_ctrl.HitTest(self.list_ctrl.ScreenToClient(position))
+            item, _column = self.list_ctrl.HitTest(
+                self.list_ctrl.ScreenToClient(position)
+            )
             if item and item.IsOk():
                 row = self.list_ctrl.ItemToRow(item)
                 if row != wx.NOT_FOUND and row < len(self.view_items):
