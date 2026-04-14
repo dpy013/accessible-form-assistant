@@ -27,3 +27,6 @@ include = ["src*"]
 
 [tool.setuptools.package-data]
 "src.templates" = ["*.html", "*.css", "*.json"]
+
+[tool.ruff]
+target-version = "py312"

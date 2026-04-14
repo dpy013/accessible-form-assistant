@@ -39,7 +39,9 @@ class ProjectConfigDialog(wx.Dialog):
             wx.LEFT | wx.RIGHT | wx.BOTTOM,
             16,
         )
-        root.Add(self.custom_config_input, 1, wx.LEFT | wx.RIGHT | wx.BOTTOM | wx.EXPAND, 16)
+        root.Add(
+            self.custom_config_input, 1, wx.LEFT | wx.RIGHT | wx.BOTTOM | wx.EXPAND, 16
+        )
 
         button_sizer = wx.StdDialogButtonSizer()
         ok_button = wx.Button(panel, wx.ID_OK)

@@ -38,8 +38,7 @@ def items_from_rows(
     rows: Sequence[Sequence[str]], prefix: str = "ROW"
 ) -> list[ProjectItem]:
     normalized_rows = [
-        [str(value).strip() for value in row if str(value).strip()]
-        for row in rows
+        [str(value).strip() for value in row if str(value).strip()] for row in rows
     ]
     normalized_rows = [row for row in normalized_rows if row]
     if not normalized_rows:
@@ -134,7 +133,9 @@ def _looks_like_header(first_row: Sequence[str], second_row: Sequence[str]) -> b
         return False
     if len(set(first_row)) != len(first_row):
         return False
-    if all(_looks_like_label(cell) for cell in first_row) and first_row != list(second_row):
+    if all(_looks_like_label(cell) for cell in first_row) and first_row != list(
+        second_row
+    ):
         return True
     if all(_looks_like_data(cell) for cell in first_row):
         return False

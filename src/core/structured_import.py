@@ -29,7 +29,9 @@ def parse_tables_with_schema(
             continue
 
         headers = [_normalize_cell(value) for value in table[header_row_index]]
-        for offset, row in enumerate(table[header_row_index + 1 :], start=len(items) + start_index):
+        for offset, row in enumerate(
+            table[header_row_index + 1 :], start=len(items) + start_index
+        ):
             mapping = _row_mapping(headers, row)
             item = schema.row_factory(mapping, offset)
             if item:
