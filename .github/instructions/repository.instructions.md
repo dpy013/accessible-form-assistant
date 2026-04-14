@@ -25,5 +25,5 @@
 
 ## GitHub workflow expectations
 
-- `main` is protected and should be updated through pull requests instead of direct pushes.
+- Treat `main` as protected; update it through pull requests instead of direct pushes.
 - Dependabot is configured to manage both Python dependencies and GitHub Actions updates.
