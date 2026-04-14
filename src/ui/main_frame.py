@@ -170,7 +170,8 @@ class MainFrame(wx.Frame):
 
         left_sizer = wx.BoxSizer(wx.VERTICAL)
         self.project_hint = wx.StaticText(
-            left_panel, label="当前未打开工程。请使用上方按钮新建、打开工程或打开文件创建工程。"
+            left_panel,
+            label="当前未打开工程。请使用上方按钮新建、打开工程或打开文件创建工程。",
         )
         self.project_hint.SetName("当前工程说明")
         summary_panel = wx.Panel(left_panel)

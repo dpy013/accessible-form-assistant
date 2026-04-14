@@ -164,13 +164,17 @@ class ProjectImporter:
             for paragraph in document.paragraphs
             if paragraph.text.strip()
         ]
-        tables = [[self._row_values(row) for row in table.rows] for table in document.tables]
+        tables = [
+            [self._row_values(row) for row in table.rows] for table in document.tables
+        ]
         content = DocumentContent(text_blocks=text_blocks, tables=tables)
         return self._build_project(path, "word", content)
 
     def _import_excel(self, path: Path) -> ImportedProject:
         workbook = load_workbook(path, data_only=True)
-        text_blocks = [sheet.title for sheet in workbook.worksheets if sheet.title.strip()]
+        text_blocks = [
+            sheet.title for sheet in workbook.worksheets if sheet.title.strip()
+        ]
         tables = [
             [
                 [self._string(value).strip() for value in row]

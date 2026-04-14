@@ -54,6 +54,8 @@ def item_from_gbt37668_values(
         priority=_priority_from_level_markers(level_markers),
         description="\n".join(description_lines),
     )
+
+
 def _priority_from_level_markers(markers: Sequence[str]) -> str:
     if len(markers) >= 1 and markers[0]:
         return "high"

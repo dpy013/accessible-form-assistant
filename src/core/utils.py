@@ -33,7 +33,9 @@ def allocate_unique_project_number(
     candidate = base_number
     index = 2
 
-    while (base_dir / candidate).exists() and (current_root is None or (base_dir / candidate) != current_root):
+    while (base_dir / candidate).exists() and (
+        current_root is None or (base_dir / candidate) != current_root
+    ):
         candidate = f"{base_number}-{index}"
         index += 1
 
