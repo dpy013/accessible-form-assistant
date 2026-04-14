@@ -8,6 +8,13 @@ version = "0.1.0"
 description = "Desktop assistant for accessibility issue collection and report export."
 readme = "README.md"
 requires-python = ">=3.14"
+license = { text = "MIT" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+]
 dependencies = [
     "wxPython",
     "python-docx",
@@ -21,6 +28,7 @@ accessible-form-assist = "src.main:main"
 
 [tool.setuptools]
 include-package-data = true
+license-files = ["LICENSE"]
 
 [tool.setuptools.packages.find]
 include = ["src*"]

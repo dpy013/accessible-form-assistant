@@ -69,3 +69,7 @@ dist\accessible-form-assist\
 ```text
 accessible-form-assist-windows-run-<run_number>
 ```
+
+## License
+
+本项目采用 [MIT License](LICENSE)。
