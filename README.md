@@ -70,6 +70,18 @@ dist\accessible-form-assist\
 accessible-form-assist-windows-run-<run_number>
 ```
 
+### 建议的 PR 合并保护
+
+仅靠 workflow 存在还不够；如果希望 **PR 有问题时管理员和所有者也不能点 Merge**，需要在 GitHub 仓库设置里为 `main` 配置 **Ruleset** 或 **Branch protection rule**，至少启用这些项：
+
+1. **Require a pull request before merging**
+2. **Require status checks to pass before merging**，并把 `ruff`、`build-windows`、`review-guard` 设为 required
+3. **Require conversation resolution before merging**
+4. **Require approvals**（建议至少 1 个）
+5. **Do not allow bypassing the above settings**
+
+仓库内已补充 `.github\workflows\pr-review-guard.yml`，它会在 PR 有未解决 review 线程或存在 `CHANGES_REQUESTED` 审查时失败；再配合上面的 Ruleset，才能真正把危险合并挡在外面。
+
 ## License
 
 本项目采用 [MIT License](LICENSE)。

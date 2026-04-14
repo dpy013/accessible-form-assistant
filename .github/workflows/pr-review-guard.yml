@@ -1,0 +1,137 @@
+name: PR review guard
+
+on:
+  workflow_dispatch:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+  pull_request_review:
+    types:
+      - submitted
+      - edited
+      - dismissed
+  pull_request_review_comment:
+    types:
+      - created
+      - edited
+      - deleted
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  review-guard:
+    if: ${{ github.event.pull_request }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check PR review status
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pullNumber = context.payload.pull_request.number;
+            const unresolvedThreads = [];
+            let reviewDecision = "REVIEW_REQUIRED";
+            let cursor = null;
+
+            const query = `
+              query($owner: String!, $repo: String!, $pullNumber: Int!, $cursor: String) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $pullNumber) {
+                    reviewDecision
+                    reviewThreads(first: 100, after: $cursor) {
+                      pageInfo {
+                        hasNextPage
+                        endCursor
+                      }
+                      nodes {
+                        isResolved
+                        isOutdated
+                        path
+                        comments(first: 1) {
+                          nodes {
+                            url
+                            body
+                            author {
+                              login
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+
+            do {
+              const result = await github.graphql(query, {
+                owner,
+                repo,
+                pullNumber,
+                cursor,
+              });
+
+              const pullRequest = result.repository.pullRequest;
+              reviewDecision = pullRequest.reviewDecision ?? "REVIEW_REQUIRED";
+
+              for (const thread of pullRequest.reviewThreads.nodes) {
+                if (thread.isResolved || thread.isOutdated) {
+                  continue;
+                }
+
+                const comment = thread.comments.nodes[0];
+                unresolvedThreads.push({
+                  path: thread.path || "(unknown file)",
+                  url: comment?.url || context.payload.pull_request.html_url,
+                  author: comment?.author?.login || "unknown",
+                  body: comment?.body || "",
+                });
+              }
+
+              cursor = pullRequest.reviewThreads.pageInfo.hasNextPage
+                ? pullRequest.reviewThreads.pageInfo.endCursor
+                : null;
+            } while (cursor);
+
+            const failures = [];
+
+            if (reviewDecision === "CHANGES_REQUESTED") {
+              failures.push("- Pull request review decision is CHANGES_REQUESTED.");
+            }
+
+            if (unresolvedThreads.length > 0) {
+              failures.push(
+                `- Found ${unresolvedThreads.length} unresolved review thread(s):`
+              );
+              for (const thread of unresolvedThreads.slice(0, 10)) {
+                failures.push(
+                  `  - ${thread.path} by ${thread.author}: ${thread.url}`
+                );
+              }
+              if (unresolvedThreads.length > 10) {
+                failures.push(
+                  `  - ...and ${unresolvedThreads.length - 10} more unresolved thread(s).`
+                );
+              }
+            }
+
+            if (failures.length > 0) {
+              core.setFailed(
+                [
+                  "Pull request is not ready to merge.",
+                  ...failures,
+                  "",
+                  "Enable this workflow as a required status check in your branch ruleset to block merges until issues are resolved."
+                ].join("\n")
+              );
+              return;
+            }
+
+            core.notice("No unresolved review threads or active changes requested reviews found.");
