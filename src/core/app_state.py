@@ -46,7 +46,7 @@ class AppStateManager:
         )
 
     def remember_project(self, project_root: Path) -> None:
-        state = self.load()
+        state = self._load_for_update()
         project_value = str(project_root.resolve())
         recent = [project_value, *state.recent_projects]
         deduplicated: list[str] = []
@@ -57,15 +57,15 @@ class AppStateManager:
         self.save(state)
 
     def forget_project(self, project_root: Path) -> None:
-        state = self.load()
+        state = self._load_for_update()
         project_value = str(project_root.resolve())
         state.recent_projects = [
             item for item in state.recent_projects if item != project_value
         ]
         self.save(state)
 
-    def recent_projects(self) -> list[Path]:
-        state = self.load()
+    def recent_projects(self, *, strict: bool = False) -> list[Path]:
+        state = self.load() if strict else self._load_for_update()
         existing = [
             Path(entry) for entry in state.recent_projects if Path(entry).exists()
         ]
@@ -74,6 +74,14 @@ class AppStateManager:
             self.save(state)
         return existing
 
-    def latest_project(self) -> Path | None:
-        projects = self.recent_projects()
+    def latest_project(self, *, strict: bool = False) -> Path | None:
+        projects = self.recent_projects(strict=strict)
         return projects[0] if projects else None
+
+    def _load_for_update(self) -> AppState:
+        try:
+            return self.load()
+        except RuntimeError:
+            state = AppState()
+            self.save(state)
+            return state

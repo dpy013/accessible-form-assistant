@@ -10,6 +10,8 @@ from openpyxl import Workbook
 
 from src.core.project_manager import ProjectItem, ProjectSession
 
+MARKDOWN_NEWLINE_TOKEN = "<!--A11Y-MD-NL-->"
+
 
 class ProjectExporter:
     def __init__(self) -> None:
@@ -117,10 +119,10 @@ class ProjectExporter:
         lines = [
             "# 信息无障碍测试报告",
             "",
-            f"- 项目编号：{self._markdown_text(session.data.meta.project_number)}",
-            f"- 名称：{self._markdown_text(session.data.meta.project_name or '-')}",
-            f"- 场景：{self._markdown_text(session.data.meta.scenario)}",
-            f"- 模板：{self._markdown_text(session.data.meta.template)}",
+            f"- 项目编号：{self._markdown_meta_text(session.data.meta.project_number)}",
+            f"- 名称：{self._markdown_meta_text(session.data.meta.project_name or '-')}",
+            f"- 场景：{self._markdown_meta_text(session.data.meta.scenario)}",
+            f"- 模板：{self._markdown_meta_text(session.data.meta.template)}",
             "",
             "| ID | 内容 | 状态 | 优先级 | 描述 | 截图 |",
             "| --- | --- | --- | --- | --- | --- |",
@@ -170,5 +172,8 @@ class ProjectExporter:
             .replace("\r", "\n")
             .replace("\\", "\\\\")
             .replace("|", "\\|")
-            .replace("\n", "<br>")
+            .replace("\n", MARKDOWN_NEWLINE_TOKEN)
         )
+
+    def _markdown_meta_text(self, value: str) -> str:
+        return value.replace("\r\n", " ").replace("\r", " ").replace("\n", " ").strip()

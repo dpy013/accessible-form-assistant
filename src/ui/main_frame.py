@@ -241,7 +241,7 @@ class MainFrame(wx.Frame):
 
     def _restore_recent_project(self) -> None:
         try:
-            latest_project = self.app_state.latest_project()
+            latest_project = self.app_state.latest_project(strict=True)
             if latest_project and latest_project.exists():
                 self._load_session(self.project_manager.load_project(latest_project))
                 self.SetStatusText(f"已恢复最近工程：{latest_project.name}")

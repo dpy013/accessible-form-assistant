@@ -20,6 +20,8 @@ from src.core.gbt37668 import (
 from src.core.project_manager import ProjectData, ProjectItem, ProjectMeta
 from src.core.structured_import import TableSchema, parse_tables_with_schema
 
+MARKDOWN_NEWLINE_TOKEN = "<!--A11Y-MD-NL-->"
+
 STATUS_MAP = {
     "pending": "pending",
     "待处理": "pending",
@@ -295,7 +297,7 @@ class ProjectImporter:
         )
 
     def _extract_value(self, text: str, label: str) -> str:
-        match = re.search(rf"{re.escape(label)}[:：]\s*([^\n｜|]+)", text)
+        match = re.search(rf"{re.escape(label)}[:：]\s*([^\n]+)", text)
         return match.group(1).strip() if match else ""
 
     def _report_item_from_mapping(
@@ -415,7 +417,7 @@ class ProjectImporter:
         return columns
 
     def _normalize_markdown_cell(self, value: str) -> str:
-        return re.sub(r"<br\s*/?>", "\n", value, flags=re.IGNORECASE).strip()
+        return value.replace(MARKDOWN_NEWLINE_TOKEN, "\n").strip()
 
     def _generic_row_prefix(self, source_format: str, table_index: int) -> str:
         base = {
