@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from json import JSONDecodeError
 import shutil
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -126,12 +127,21 @@ class ProjectManager:
 
     def load_project(self, project_root: Path) -> ProjectSession:
         config_file = project_root / CONFIG_FILENAME
-        payload = json.loads(
-            (project_root / PROJECT_FILENAME).read_text(encoding="utf-8")
-        )
+        project_file = project_root / PROJECT_FILENAME
+        try:
+            payload = json.loads(project_file.read_text(encoding="utf-8"))
+        except JSONDecodeError as exc:
+            raise RuntimeError(f"工程数据文件损坏：{project_file}") from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError(f"工程数据文件格式无效：{project_file}")
+
+        try:
+            data = ProjectData.from_dict(payload)
+        except (KeyError, TypeError) as exc:
+            raise RuntimeError(f"工程数据文件格式无效：{project_file}") from exc
         session = ProjectSession(
             root=project_root,
-            data=ProjectData.from_dict(payload),
+            data=data,
             config=self.load_config(project_root),
         )
         self._normalize_project_session(session)
@@ -150,6 +160,7 @@ class ProjectManager:
         self.save_project(session)
         backup_name = datetime.now().strftime("project_%Y%m%d_%H%M%S.json")
         target = session.root / "backup" / backup_name
+        ensure_directory(target.parent)
         shutil.copy2(session.project_file, target)
         return target
 
@@ -170,6 +181,7 @@ class ProjectManager:
         timestamp = datetime.now().strftime("%H%M%S_%f")
         relative_path = Path("assets") / f"screenshot_{timestamp}.jpg"
         destination = session.root / relative_path
+        ensure_directory(destination.parent)
 
         image = bitmap.ConvertToImage()
         width, height = image.GetSize()
@@ -186,7 +198,10 @@ class ProjectManager:
         if not config_file.exists():
             return ProjectConfig()
 
-        tree = ET.parse(config_file)
+        try:
+            tree = ET.parse(config_file)
+        except ET.ParseError as exc:
+            raise RuntimeError(f"工程配置文件损坏：{config_file}") from exc
         root = tree.getroot()
         tool_settings = root.find("tool-settings")
         custom_settings = root.find("custom-settings")

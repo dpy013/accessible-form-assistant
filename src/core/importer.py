@@ -353,9 +353,7 @@ class ProjectImporter:
                 continue
             if self._is_markdown_separator(stripped):
                 continue
-            current_table.append(
-                [column.strip() for column in stripped.strip("|").split("|")]
-            )
+            current_table.append(self._split_markdown_row(stripped))
         if current_table:
             tables.append(current_table)
         return tables
@@ -377,6 +375,39 @@ class ProjectImporter:
         return bool(columns) and all(
             column and set(column) <= {"-", ":"} for column in columns
         )
+
+    def _split_markdown_row(self, line: str) -> list[str]:
+        content = line.strip().strip("|")
+        if not content:
+            return [""]
+
+        columns: list[str] = []
+        current: list[str] = []
+        escaped = False
+        for char in content:
+            if escaped:
+                if char in {"|", "\\"}:
+                    current.append(char)
+                else:
+                    current.append("\\")
+                    current.append(char)
+                escaped = False
+                continue
+            if char == "\\":
+                escaped = True
+                continue
+            if char == "|":
+                columns.append(self._normalize_markdown_cell("".join(current)))
+                current = []
+                continue
+            current.append(char)
+        if escaped:
+            current.append("\\")
+        columns.append(self._normalize_markdown_cell("".join(current)))
+        return columns
+
+    def _normalize_markdown_cell(self, value: str) -> str:
+        return re.sub(r"<br\s*/?>", "\n", value, flags=re.IGNORECASE).strip()
 
     def _generic_row_prefix(self, source_format: str, table_index: int) -> str:
         base = {

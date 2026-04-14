@@ -117,18 +117,28 @@ class ProjectExporter:
         lines = [
             "# 信息无障碍测试报告",
             "",
-            f"- 项目编号：{session.data.meta.project_number}",
-            f"- 名称：{session.data.meta.project_name or '-'}",
-            f"- 场景：{session.data.meta.scenario}",
-            f"- 模板：{session.data.meta.template}",
+            f"- 项目编号：{self._markdown_text(session.data.meta.project_number)}",
+            f"- 名称：{self._markdown_text(session.data.meta.project_name or '-')}",
+            f"- 场景：{self._markdown_text(session.data.meta.scenario)}",
+            f"- 模板：{self._markdown_text(session.data.meta.template)}",
             "",
             "| ID | 内容 | 状态 | 优先级 | 描述 | 截图 |",
             "| --- | --- | --- | --- | --- | --- |",
         ]
         for item in self._active_items(session):
             lines.append(
-                f"| {item.id} | {item.content} | {item.status} | {item.priority} | "
-                f"{item.description or '-'} | {item.image_path or '-'} |"
+                "| "
+                + " | ".join(
+                    [
+                        self._markdown_cell(item.id),
+                        self._markdown_cell(item.content),
+                        self._markdown_cell(item.status),
+                        self._markdown_cell(item.priority),
+                        self._markdown_cell(item.description or "-"),
+                        self._markdown_cell(item.image_path or "-"),
+                    ]
+                )
+                + " |"
             )
         target.write_text("\n".join(lines), encoding="utf-8")
         return target
@@ -149,3 +159,16 @@ class ProjectExporter:
             key = item.status if item.status in stats else "pending"
             stats[key] += 1
         return stats
+
+    def _markdown_cell(self, value: str) -> str:
+        rendered = self._markdown_text(value)
+        return rendered or "-"
+
+    def _markdown_text(self, value: str) -> str:
+        return (
+            value.replace("\r\n", "\n")
+            .replace("\r", "\n")
+            .replace("\\", "\\\\")
+            .replace("|", "\\|")
+            .replace("\n", "<br>")
+        )

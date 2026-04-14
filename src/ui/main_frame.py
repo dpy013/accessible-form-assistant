@@ -240,14 +240,15 @@ class MainFrame(wx.Frame):
         self.backup_timer.Start(5 * 60 * 1000)
 
     def _restore_recent_project(self) -> None:
-        latest_project = self.app_state.latest_project()
-        if latest_project and latest_project.exists():
-            try:
+        try:
+            latest_project = self.app_state.latest_project()
+            if latest_project and latest_project.exists():
                 self._load_session(self.project_manager.load_project(latest_project))
                 self.SetStatusText(f"已恢复最近工程：{latest_project.name}")
                 return
-            except Exception:
-                self.SetStatusText("最近工程恢复失败，请重新选择。")
+        except Exception as exc:
+            self.SetStatusText(f"最近工程恢复失败：{exc}")
+            return
         self.SetStatusText("当前未打开工程。可按 Alt+F 使用菜单，或使用窗口顶部按钮。")
 
     def _append_menu_actions(

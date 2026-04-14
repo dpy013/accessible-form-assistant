@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from json import JSONDecodeError
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -21,8 +22,20 @@ class AppStateManager:
     def load(self) -> AppState:
         if not self.state_file.exists():
             return AppState()
-        payload = json.loads(self.state_file.read_text(encoding="utf-8"))
-        return AppState(recent_projects=payload.get("recent_projects", []))
+        try:
+            payload = json.loads(self.state_file.read_text(encoding="utf-8"))
+        except JSONDecodeError as exc:
+            raise RuntimeError(f"应用状态文件损坏：{self.state_file}") from exc
+
+        if not isinstance(payload, dict):
+            raise RuntimeError(f"应用状态文件格式无效：{self.state_file}")
+
+        recent_projects = payload.get("recent_projects", [])
+        if not isinstance(recent_projects, list) or any(
+            not isinstance(item, str) for item in recent_projects
+        ):
+            raise RuntimeError(f"应用状态文件格式无效：{self.state_file}")
+        return AppState(recent_projects=recent_projects)
 
     def save(self, state: AppState) -> None:
         self.state_file.write_text(
