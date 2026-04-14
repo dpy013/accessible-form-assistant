@@ -18,6 +18,8 @@
 
 ## 本地运行
 
+建议使用 Python 3.14.4。
+
 ```powershell
 uv venv
 .venv\Scripts\activate
@@ -32,6 +34,8 @@ scons
 ```
 
 ## 打包 Windows 可执行文件
+
+建议使用 Python 3.14.4。
 
 ```powershell
 .venv\Scripts\activate

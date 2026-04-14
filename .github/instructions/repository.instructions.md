@@ -8,7 +8,7 @@
 
 ## Tech stack and packaging
 
-- Use Python 3.12 for development and automation changes.
+- Use Python 3.14.4 for development and automation changes.
 - Keep dependency definitions aligned between `pyproject.toml` and `requirements.txt` when adding, removing, or updating runtime packages.
 - The project is packaged with PyInstaller using `accessible-form-assist.spec`.
 
