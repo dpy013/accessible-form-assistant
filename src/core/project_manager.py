@@ -131,7 +131,7 @@ class ProjectManager:
         try:
             payload = json.loads(project_file.read_text(encoding="utf-8"))
         except JSONDecodeError as exc:
-            raise RuntimeError(f"工程数据文件损坏：{project_file}") from exc
+            raise RuntimeError(f"工程数据文件损坏：{project_file}（{exc}）") from exc
         if not isinstance(payload, dict):
             raise RuntimeError(f"工程数据文件格式无效：{project_file}")
 
