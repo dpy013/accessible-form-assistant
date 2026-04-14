@@ -25,7 +25,9 @@ class AppStateManager:
         try:
             payload = json.loads(self.state_file.read_text(encoding="utf-8"))
         except JSONDecodeError as exc:
-            raise RuntimeError(f"应用状态文件损坏：{self.state_file}") from exc
+            raise RuntimeError(
+                f"应用状态文件损坏：{self.state_file}（{exc}）"
+            ) from exc
 
         if not isinstance(payload, dict):
             raise RuntimeError(f"应用状态文件格式无效：{self.state_file}")
