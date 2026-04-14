@@ -201,7 +201,7 @@ class ProjectManager:
         try:
             tree = ET.parse(config_file)
         except ET.ParseError as exc:
-            raise RuntimeError(f"工程配置文件损坏：{config_file}") from exc
+            raise RuntimeError(f"工程配置文件损坏：{config_file}（{exc}）") from exc
         root = tree.getroot()
         tool_settings = root.find("tool-settings")
         custom_settings = root.find("custom-settings")
