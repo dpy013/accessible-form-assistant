@@ -100,8 +100,7 @@ class ProjectManager:
     ) -> ProjectSession:
         project_number = allocate_project_number(self.workspace)
         root = ensure_directory(self.workspace / project_number)
-        ensure_directory(root / "assets")
-        ensure_directory(root / "backup")
+        self._ensure_project_directories(root)
 
         data = ProjectData(
             meta=ProjectMeta(
@@ -118,6 +117,7 @@ class ProjectManager:
         return session
 
     def save_project(self, session: ProjectSession) -> None:
+        self._ensure_project_directories(session.root)
         session.project_file.write_text(
             json.dumps(session.data.to_dict(), ensure_ascii=False, indent=2),
             encoding="utf-8",
@@ -134,6 +134,7 @@ class ProjectManager:
             data=ProjectData.from_dict(payload),
             config=self.load_config(project_root),
         )
+        self._ensure_project_directories(session.root)
         self._normalize_project_session(session)
         if not config_file.exists():
             self.save_config(session)
@@ -149,6 +150,7 @@ class ProjectManager:
     def backup_project(self, session: ProjectSession) -> Path:
         self.save_project(session)
         backup_name = datetime.now().strftime("project_%Y%m%d_%H%M%S.json")
+        self._ensure_project_directories(session.root)
         target = session.root / "backup" / backup_name
         shutil.copy2(session.project_file, target)
         return target
@@ -169,6 +171,7 @@ class ProjectManager:
     def save_bitmap_asset(self, session: ProjectSession, bitmap) -> str:
         timestamp = datetime.now().strftime("%H%M%S_%f")
         relative_path = Path("assets") / f"screenshot_{timestamp}.jpg"
+        self._ensure_project_directories(session.root)
         destination = session.root / relative_path
 
         image = bitmap.ConvertToImage()
@@ -259,3 +262,7 @@ class ProjectManager:
 
     def _xml_text(self, value: bool) -> str:
         return "true" if value else "false"
+
+    def _ensure_project_directories(self, project_root: Path) -> None:
+        ensure_directory(project_root / "assets")
+        ensure_directory(project_root / "backup")
