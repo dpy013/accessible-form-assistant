@@ -410,9 +410,7 @@ class ProjectImporter:
     def _normalize_markdown_cell(self, value: str) -> str:
         cleaned = value.strip()
         return (
-            cleaned.replace("<br />", "\n")
-            .replace("<br/>", "\n")
-            .replace("<br>", "\n")
+            cleaned.replace("<br />", "\n").replace("<br/>", "\n").replace("<br>", "\n")
         )
 
     def _excel_meta_blocks(self, rows: Sequence[Sequence[str]]) -> list[str]:
