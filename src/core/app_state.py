@@ -21,8 +21,26 @@ class AppStateManager:
     def load(self) -> AppState:
         if not self.state_file.exists():
             return AppState()
-        payload = json.loads(self.state_file.read_text(encoding="utf-8"))
-        return AppState(recent_projects=payload.get("recent_projects", []))
+        try:
+            payload = json.loads(self.state_file.read_text(encoding="utf-8"))
+        except OSError:
+            state = AppState()
+            self.save(state)
+            return state
+        except json.JSONDecodeError:
+            state = AppState()
+            self.save(state)
+            return state
+        if not isinstance(payload, dict):
+            state = AppState()
+            self.save(state)
+            return state
+        recent_projects = payload.get("recent_projects", [])
+        if not isinstance(recent_projects, list):
+            state = AppState()
+            self.save(state)
+            return state
+        return AppState(recent_projects=[str(item) for item in recent_projects if item])
 
     def save(self, state: AppState) -> None:
         self.state_file.write_text(

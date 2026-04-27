@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import csv
 from dataclasses import asdict
+from importlib.resources import files
 from pathlib import Path
 
 from docx import Document
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, PackageLoader, select_autoescape
 from openpyxl import Workbook
 
 from src.core.project_manager import ProjectItem, ProjectSession
@@ -13,12 +14,13 @@ from src.core.project_manager import ProjectItem, ProjectSession
 
 class ProjectExporter:
     def __init__(self) -> None:
-        self.template_dir = Path(__file__).resolve().parent.parent / "templates"
         self.environment = Environment(
-            loader=FileSystemLoader(str(self.template_dir)),
+            loader=PackageLoader("src", "templates"),
             autoescape=select_autoescape(["html"]),
         )
-        self.styles = (self.template_dir / "styles.css").read_text(encoding="utf-8")
+        self.styles = (
+            files("src.templates").joinpath("styles.css").read_text(encoding="utf-8")
+        )
 
     def export_html(
         self, session: ProjectSession, destination: Path | None = None
