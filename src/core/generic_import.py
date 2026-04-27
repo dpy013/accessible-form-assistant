@@ -38,9 +38,9 @@ def items_from_rows(
     rows: Sequence[Sequence[str]], prefix: str = "ROW"
 ) -> list[ProjectItem]:
     normalized_rows = [
-        [str(value).strip() for value in row if str(value).strip()] for row in rows
+        [str(value).strip() for value in row] for row in rows
     ]
-    normalized_rows = [row for row in normalized_rows if row]
+    normalized_rows = [row for row in normalized_rows if any(cell for cell in row)]
     if not normalized_rows:
         return []
 

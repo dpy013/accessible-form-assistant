@@ -39,6 +39,15 @@ def parse_tables_with_schema(
     return items
 
 
+def tables_match_schema(
+    tables: Sequence[Sequence[Sequence[str]]], schema: TableSchema
+) -> bool:
+    return any(
+        _find_header_row_index(table, schema.required_headers) is not None
+        for table in tables
+    )
+
+
 def _find_header_row_index(
     rows: Sequence[Sequence[str]], required_headers: Sequence[str]
 ) -> int | None:

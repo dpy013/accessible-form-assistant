@@ -40,22 +40,24 @@ class ProjectExporter:
         target = destination or (session.root / "report.docx")
         document = Document()
         document.add_heading("信息无障碍测试报告", level=0)
-        title_parts = [
-            f"项目编号：{session.data.meta.project_number}",
-            f"场景：{session.data.meta.scenario}",
-            f"模板：{session.data.meta.template}",
-        ]
+        title_parts = [f"项目编号：{session.data.meta.project_number}"]
         if session.data.meta.project_name:
-            title_parts.insert(1, f"名称：{session.data.meta.project_name}")
-        document.add_paragraph("    ".join(title_parts))
+            title_parts.append(f"名称：{session.data.meta.project_name}")
+        title_parts.append(f"场景：{session.data.meta.scenario}")
+        title_parts.append(f"模板：{session.data.meta.template}")
+        if session.data.meta.created_time:
+            title_parts.append(f"创建时间：{session.data.meta.created_time}")
+        for line in title_parts:
+            document.add_paragraph(line)
 
-        table = document.add_table(rows=1, cols=5)
+        table = document.add_table(rows=1, cols=6)
         header = table.rows[0].cells
         header[0].text = "ID"
         header[1].text = "检查项"
         header[2].text = "状态"
         header[3].text = "优先级"
         header[4].text = "描述"
+        header[5].text = "截图"
 
         for item in self._active_items(session):
             row = table.add_row().cells
@@ -64,6 +66,7 @@ class ProjectExporter:
             row[2].text = item.status
             row[3].text = item.priority
             row[4].text = item.description
+            row[5].text = item.image_path
 
         document.save(target)
         return target
@@ -75,6 +78,14 @@ class ProjectExporter:
         workbook = Workbook()
         sheet = workbook.active
         sheet.title = "Accessibility Report"
+        sheet.append(["项目编号", session.data.meta.project_number])
+        if session.data.meta.project_name:
+            sheet.append(["名称", session.data.meta.project_name])
+        sheet.append(["场景", session.data.meta.scenario])
+        sheet.append(["模板", session.data.meta.template])
+        if session.data.meta.created_time:
+            sheet.append(["创建时间", session.data.meta.created_time])
+        sheet.append([])
         sheet.append(["ID", "内容", "状态", "优先级", "描述", "截图"])
         for item in self._active_items(session):
             sheet.append(
@@ -127,8 +138,10 @@ class ProjectExporter:
         ]
         for item in self._active_items(session):
             lines.append(
-                f"| {item.id} | {item.content} | {item.status} | {item.priority} | "
-                f"{item.description or '-'} | {item.image_path or '-'} |"
+                f"| {self._markdown_cell(item.id)} | {self._markdown_cell(item.content)} | "
+                f"{self._markdown_cell(item.status)} | {self._markdown_cell(item.priority)} | "
+                f"{self._markdown_cell(item.description or '-')} | "
+                f"{self._markdown_cell(item.image_path or '-')} |"
             )
         target.write_text("\n".join(lines), encoding="utf-8")
         return target
@@ -149,3 +162,6 @@ class ProjectExporter:
             key = item.status if item.status in stats else "pending"
             stats[key] += 1
         return stats
+
+    def _markdown_cell(self, value: str) -> str:
+        return value.replace("\\", "\\\\").replace("|", "\\|").replace("\n", "<br>")
