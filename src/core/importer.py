@@ -18,7 +18,11 @@ from src.core.gbt37668 import (
     item_from_gbt37668_mapping,
 )
 from src.core.project_manager import ProjectData, ProjectItem, ProjectMeta
-from src.core.structured_import import TableSchema, parse_tables_with_schema
+from src.core.structured_import import (
+    TableSchema,
+    parse_tables_with_schema,
+    tables_match_schema,
+)
 
 STATUS_MAP = {
     "pending": "pending",
@@ -172,16 +176,17 @@ class ProjectImporter:
 
     def _import_excel(self, path: Path) -> ImportedProject:
         workbook = load_workbook(path, data_only=True)
-        text_blocks = [
-            sheet.title for sheet in workbook.worksheets if sheet.title.strip()
-        ]
-        tables = [
-            [
+        text_blocks: list[str] = []
+        tables: list[list[list[str]]] = []
+        for sheet in workbook.worksheets:
+            if sheet.title.strip():
+                text_blocks.append(sheet.title)
+            rows = [
                 [self._string(value).strip() for value in row]
                 for row in sheet.iter_rows(values_only=True)
             ]
-            for sheet in workbook.worksheets
-        ]
+            tables.append(rows)
+            text_blocks.extend(self._excel_meta_blocks(rows))
         content = DocumentContent(text_blocks=text_blocks, tables=tables)
         return self._build_project(path, "excel", content)
 
@@ -221,12 +226,13 @@ class ProjectImporter:
         self, tables: Sequence[Sequence[Sequence[str]]]
     ) -> StructuredResult | None:
         for schema in self._table_schemas():
+            if not tables_match_schema(tables, schema):
+                continue
             items = parse_tables_with_schema(tables, schema)
-            if items:
-                return StructuredResult(
-                    items=items,
-                    template_name=schema.template_name or "结构化导入",
-                )
+            return StructuredResult(
+                items=items,
+                template_name=schema.template_name or "结构化导入",
+            )
         return None
 
     def _generic_items_from_content(
@@ -353,9 +359,7 @@ class ProjectImporter:
                 continue
             if self._is_markdown_separator(stripped):
                 continue
-            current_table.append(
-                [column.strip() for column in stripped.strip("|").split("|")]
-            )
+            current_table.append(self._split_markdown_row(stripped))
         if current_table:
             tables.append(current_table)
         return tables
@@ -373,10 +377,53 @@ class ProjectImporter:
         return blocks
 
     def _is_markdown_separator(self, line: str) -> bool:
-        columns = [column.strip() for column in line.strip("|").split("|")]
+        columns = self._split_markdown_row(line)
         return bool(columns) and all(
             column and set(column) <= {"-", ":"} for column in columns
         )
+
+    def _split_markdown_row(self, line: str) -> list[str]:
+        columns: list[str] = []
+        current: list[str] = []
+        content = line.strip().strip("|")
+        index = 0
+        while index < len(content):
+            char = content[index]
+            if (
+                char == "\\"
+                and index + 1 < len(content)
+                and content[index + 1] in {"\\", "|"}
+            ):
+                current.append(content[index + 1])
+                index += 2
+                continue
+            if char == "|":
+                columns.append(self._normalize_markdown_cell("".join(current)))
+                current = []
+                index += 1
+                continue
+            current.append(char)
+            index += 1
+        columns.append(self._normalize_markdown_cell("".join(current)))
+        return columns
+
+    def _normalize_markdown_cell(self, value: str) -> str:
+        cleaned = value.strip()
+        return (
+            cleaned.replace("<br />", "\n").replace("<br/>", "\n").replace("<br>", "\n")
+        )
+
+    def _excel_meta_blocks(self, rows: Sequence[Sequence[str]]) -> list[str]:
+        meta_labels = {"项目编号", "创建时间", "场景", "模板", "工程名称", "名称"}
+        blocks: list[str] = []
+        for row in rows:
+            values = [value.strip() for value in row if value and value.strip()]
+            if len(values) != 2:
+                continue
+            if values[0] not in meta_labels:
+                continue
+            blocks.append(f"{values[0]}：{values[1]}")
+        return blocks
 
     def _generic_row_prefix(self, source_format: str, table_index: int) -> str:
         base = {

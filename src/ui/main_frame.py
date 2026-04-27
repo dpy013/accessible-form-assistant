@@ -479,16 +479,10 @@ class MainFrame(wx.Frame):
             return
 
         app_root = Path(__file__).resolve().parents[2]
-        if getattr(sys, "frozen", False):
-            command = [sys.executable]
-        else:
-            command = [
-                sys.executable,
-                "-m",
-                "src.main",
-                "--workspace",
-                str(self.workspace),
-            ]
+        command = [sys.executable]
+        if not getattr(sys, "frozen", False):
+            command.extend(["-m", "src.main"])
+        command.extend(["--workspace", str(self.workspace)])
 
         subprocess.Popen(command, cwd=str(app_root))
         self._restart_pending = True
