@@ -24,22 +24,16 @@ class AppStateManager:
         try:
             payload = json.loads(self.state_file.read_text(encoding="utf-8"))
         except OSError:
-            state = AppState()
-            self.save(state)
-            return state
+            return self._reset_state()
+        except UnicodeDecodeError:
+            return self._reset_state()
         except json.JSONDecodeError:
-            state = AppState()
-            self.save(state)
-            return state
+            return self._reset_state()
         if not isinstance(payload, dict):
-            state = AppState()
-            self.save(state)
-            return state
+            return self._reset_state()
         recent_projects = payload.get("recent_projects", [])
         if not isinstance(recent_projects, list):
-            state = AppState()
-            self.save(state)
-            return state
+            return self._reset_state()
         return AppState(recent_projects=[str(item) for item in recent_projects if item])
 
     def save(self, state: AppState) -> None:
@@ -82,3 +76,11 @@ class AppStateManager:
     def latest_project(self) -> Path | None:
         projects = self.recent_projects()
         return projects[0] if projects else None
+
+    def _reset_state(self) -> AppState:
+        state = AppState()
+        try:
+            self.save(state)
+        except OSError:
+            pass
+        return state

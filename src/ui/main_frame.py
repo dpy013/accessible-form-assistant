@@ -249,7 +249,7 @@ class MainFrame(wx.Frame):
             except Exception:
                 try:
                     self.app_state.forget_project(latest_project)
-                except Exception:
+                except OSError:
                     pass
                 self.SetStatusText("最近工程恢复失败，请重新选择。")
         self.SetStatusText("当前未打开工程。可按 Alt+F 使用菜单，或使用窗口顶部按钮。")
