@@ -26,7 +26,9 @@ class AppStateManagerTests(unittest.TestCase):
         self.manager.save(AppState(recent_projects=["C:\\demo\\one"]))
 
         self.assertEqual(
-            json.loads((self.workspace / APP_STATE_FILENAME).read_text(encoding="utf-8")),
+            json.loads(
+                (self.workspace / APP_STATE_FILENAME).read_text(encoding="utf-8")
+            ),
             {"recent_projects": ["C:\\demo\\one"]},
         )
         self.assertEqual(
@@ -56,7 +58,9 @@ class AppStateManagerTests(unittest.TestCase):
 
         self.assertEqual(state.recent_projects, [])
         self.assertEqual(
-            json.loads((self.workspace / APP_STATE_FILENAME).read_text(encoding="utf-8")),
+            json.loads(
+                (self.workspace / APP_STATE_FILENAME).read_text(encoding="utf-8")
+            ),
             {"recent_projects": []},
         )
 
