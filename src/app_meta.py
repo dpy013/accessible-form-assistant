@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import tomllib
+from datetime import UTC, datetime
 from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version as installed_version
 from pathlib import Path
@@ -55,6 +56,30 @@ def build_label() -> str | None:
 
     build_suffix = os.getenv("BUILD_SUFFIX", "").strip() or DEFAULT_BUILD_SUFFIX
     return f"{build_stamp}{build_suffix}"
+
+
+def github_actions_build_label(
+    *,
+    now: datetime | None = None,
+    run_number: str | int | None = None,
+    run_attempt: str | int | None = None,
+) -> str:
+    build_time = now if now is not None else datetime.now(UTC)
+    build_stamp = build_time.strftime("%y%m%d")
+    normalized_run_number = str(
+        run_number if run_number is not None else os.getenv("GITHUB_RUN_NUMBER", "")
+    ).strip()
+    normalized_run_attempt = str(
+        run_attempt
+        if run_attempt is not None
+        else os.getenv("GITHUB_RUN_ATTEMPT", "")
+    ).strip()
+
+    if not normalized_run_number:
+        return f"{build_stamp}{DEFAULT_BUILD_SUFFIX}"
+    if normalized_run_attempt and normalized_run_attempt != "1":
+        return f"{build_stamp}r{normalized_run_number}a{normalized_run_attempt}"
+    return f"{build_stamp}r{normalized_run_number}"
 
 
 def display_version() -> str:

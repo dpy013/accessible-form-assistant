@@ -38,7 +38,7 @@ jobs:
       - name: Set build metadata
         shell: pwsh
         run: |
-          $buildLabel = [DateTime]::UtcNow.ToString("yyMMdd") + "s"
+          $buildLabel = python -c "from src.app_meta import github_actions_build_label; print(github_actions_build_label())"
           $env:BUILD_LABEL = $buildLabel
           $releaseName = python -c "from src.app_meta import release_name; print(release_name())"
           "BUILD_LABEL=$buildLabel" >> $env:GITHUB_ENV
