@@ -5,12 +5,13 @@ from pathlib import Path
 
 import wx
 
+from src.app_meta import APP_DISPLAY_NAME
 from src.core.parser import TemplateRepository
 from src.ui.main_frame import MainFrame
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="信息无障碍表格填写助手")
+    parser = argparse.ArgumentParser(description=APP_DISPLAY_NAME)
     parser.add_argument(
         "--workspace",
         default=str(Path.cwd()),

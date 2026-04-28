@@ -1,4 +1,4 @@
-# accessible-form-assist
+# accessible-form-assistant
 
 信息无障碍表格填写助手桌面应用工程。
 
@@ -43,10 +43,24 @@ python -m pip install pyinstaller
 pyinstaller --clean --noconfirm accessible-form-assist.spec
 ```
 
-输出目录：
+默认输出目录：
 
 ```text
-dist\accessible-form-assist\
+dist\accessible-form-assistant-0.1.0\
+```
+
+如果希望本地构建也带上类似 `260427s` 的构建标识，可先设置：
+
+```powershell
+$env:BUILD_LABEL = "260427s"
+pyinstaller --clean --noconfirm accessible-form-assist.spec
+```
+
+此时输出目录和可执行文件会包含版本与构建标识，例如：
+
+```text
+dist\accessible-form-assistant-0.1.0-260427s\
+accessible-form-assistant-0.1.0-260427s.exe
 ```
 
 ## GitHub Actions
@@ -67,7 +81,7 @@ dist\accessible-form-assist\
 构建产物命名格式：
 
 ```text
-accessible-form-assist-windows-run-<run_number>
+accessible-form-assistant-0.1.0-<yymmdd>s-windows-x64
 ```
 
 ## License
