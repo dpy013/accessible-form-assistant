@@ -35,6 +35,15 @@ jobs:
         run: |
           python -m compileall src
 
+      - name: Set build metadata
+        shell: pwsh
+        run: |
+          $buildLabel = [DateTime]::UtcNow.ToString("yyMMdd") + "s"
+          $env:BUILD_LABEL = $buildLabel
+          $releaseName = python -c "from src.app_meta import release_name; print(release_name())"
+          "BUILD_LABEL=$buildLabel" >> $env:GITHUB_ENV
+          "APP_RELEASE_NAME=$releaseName" >> $env:GITHUB_ENV
+
       - name: Build executable
         shell: pwsh
         run: |
@@ -43,8 +52,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: accessible-form-assist-windows-run-${{ github.run_number }}
-          path: dist/accessible-form-assist/**
+          name: ${{ env.APP_RELEASE_NAME }}-windows-x64
+          path: dist/${{ env.APP_RELEASE_NAME }}/**
           if-no-files-found: error
 
       - name: Delete previous workflow runs
@@ -58,7 +67,7 @@ jobs:
             Authorization = "Bearer $env:GITHUB_TOKEN"
             Accept = "application/vnd.github+json"
             "X-GitHub-Api-Version" = "2022-11-28"
-            "User-Agent" = "accessible-form-assist-cleanup"
+            "User-Agent" = "accessible-form-assistant-cleanup"
           }
           $repo = "${{ github.repository }}"
           $currentRunId = [int64]"${{ github.run_id }}"

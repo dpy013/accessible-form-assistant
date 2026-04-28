@@ -9,6 +9,7 @@ from pathlib import Path
 import wx
 import wx.dataview as dv
 
+from src.app_meta import window_title_suffix
 from src.core.app_state import AppStateManager
 from src.core.exporter import ProjectExporter
 from src.core.importer import ImportedProject, ProjectImporter
@@ -53,7 +54,7 @@ class MainFrame(wx.Frame):
     def __init__(
         self, workspace: Path, template_repository: TemplateRepository
     ) -> None:
-        super().__init__(None, title="信息无障碍表格填写助手", size=(1320, 820))
+        super().__init__(None, title=window_title_suffix(), size=(1320, 820))
         self.workspace = workspace
         self.template_repository = template_repository
         self.project_manager = ProjectManager(workspace)
@@ -830,13 +831,13 @@ class MainFrame(wx.Frame):
 
     def _update_title(self) -> None:
         if not self.session:
-            self.SetTitle("信息无障碍表格填写助手")
+            self.SetTitle(window_title_suffix())
             return
         meta = self.session.data.meta
         dirty_flag = " *" if self._dirty else ""
         name_part = f" {meta.project_name}" if meta.project_name else ""
         self.SetTitle(
-            f"当前项目: {meta.project_number}{name_part} [{meta.scenario}] - 信息无障碍表格填写助手{dirty_flag}"
+            f"当前项目: {meta.project_number}{name_part} [{meta.scenario}] - {window_title_suffix()}{dirty_flag}"
         )
 
     def _on_close(self, event: wx.CloseEvent) -> None:
