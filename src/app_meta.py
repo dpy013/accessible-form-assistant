@@ -82,6 +82,27 @@ def github_actions_build_label(
     return f"{build_stamp}r{normalized_run_number}"
 
 
+def github_actions_artifact_name(
+    *,
+    run_id: str | int | None = None,
+    run_attempt: str | int | None = None,
+) -> str:
+    normalized_run_id = str(
+        run_id if run_id is not None else os.getenv("GITHUB_RUN_ID", "")
+    ).strip()
+    normalized_run_attempt = str(
+        run_attempt
+        if run_attempt is not None
+        else os.getenv("GITHUB_RUN_ATTEMPT", "")
+    ).strip()
+
+    if not normalized_run_id:
+        return release_name()
+    if normalized_run_attempt and normalized_run_attempt != "1":
+        return f"{APP_DIST_NAME}-run{normalized_run_id}-a{normalized_run_attempt}"
+    return f"{APP_DIST_NAME}-run{normalized_run_id}"
+
+
 def display_version() -> str:
     current_build_label = build_label()
     version = package_version()

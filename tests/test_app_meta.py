@@ -27,10 +27,31 @@ class GitHubActionsBuildLabelTests(unittest.TestCase):
 
         self.assertEqual(label, "260429r57a3")
 
+
+class GitHubActionsArtifactNameTests(unittest.TestCase):
+    def test_artifact_name_uses_run_id(self) -> None:
+        artifact_name = app_meta.github_actions_artifact_name(
+            run_id=25067180150,
+            run_attempt=1,
+        )
+
+        self.assertEqual(artifact_name, f"{app_meta.APP_DIST_NAME}-run25067180150")
+
+    def test_artifact_name_includes_rerun_attempt(self) -> None:
+        artifact_name = app_meta.github_actions_artifact_name(
+            run_id=25067180150,
+            run_attempt=2,
+        )
+
+        self.assertEqual(artifact_name, f"{app_meta.APP_DIST_NAME}-run25067180150-a2")
+
+
+class ReleaseNameTests(unittest.TestCase):
     def test_release_name_uses_explicit_build_label(self) -> None:
         with patch.dict(os.environ, {"BUILD_LABEL": "260429r57"}):
             self.assertEqual(
-                app_meta.release_name(), "accessible-form-assistant-0.1.0-260429r57"
+                app_meta.release_name(),
+                f"{app_meta.APP_DIST_NAME}-{app_meta.package_version()}-260429r57",
             )
 
 

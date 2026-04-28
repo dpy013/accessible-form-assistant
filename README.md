@@ -78,10 +78,12 @@ accessible-form-assistant-0.1.0-260427s.exe
 3. 使用 PyInstaller 构建 Windows 可执行文件
 4. 上传构建产物
 
-构建产物命名格式会按工作流运行号动态生成，避免同一天内重复：
+构建产物目录和可执行文件会带上版本号与构建标识，例如 `accessible-form-assistant-0.1.0-260429r57`。
+
+GitHub Actions 上传的 artifact 名称会单独按工作流运行编号生成，避免继续显示固定版本前缀：
 
 ```text
-accessible-form-assistant-0.1.0-<yymmdd>r<run-number>[a<attempt>]-windows-x64
+accessible-form-assistant-run<run-id>[-a<attempt>]-windows-x64
 ```
 
 ## License
