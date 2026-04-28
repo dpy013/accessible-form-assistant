@@ -81,7 +81,7 @@ accessible-form-assistant-0.1.0-260427s.exe
 构建产物命名格式会按工作流运行号动态生成，避免同一天内重复：
 
 ```text
-accessible-form-assistant-0.1.0-<yymmdd>r<run-number>[-a<attempt>]-windows-x64
+accessible-form-assistant-0.1.0-<yymmdd>r<run-number>[a<attempt>]-windows-x64
 ```
 
 ## License
