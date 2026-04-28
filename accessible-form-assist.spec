@@ -22,7 +22,7 @@ version_file = build_dir / "pyinstaller-version-info.txt"
 version_numbers = numeric_version_tuple()
 version_literal = ", ".join(str(part) for part in version_numbers)
 bundle_name = release_name()
-exe_name = executable_filename()[:-4]
+exe_name = Path(executable_filename()).stem
 display_build_version = display_version()
 version_file.write_text(
     f"""VSVersionInfo(
@@ -64,6 +64,7 @@ datas = [
     for path in templates_dir.iterdir()
     if path.is_file()
 ]
+datas.append((str(project_root / "pyproject.toml"), "."))
 
 
 a = Analysis(
