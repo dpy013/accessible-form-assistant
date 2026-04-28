@@ -75,10 +75,10 @@ class AppStateManager:
                 suffix=".tmp",
                 delete=False,
             ) as handle:
-                handle.write(payload)
                 temp_path = Path(handle.name)
+                handle.write(payload)
             temp_path.replace(self.state_file)
-        except OSError:
+        except Exception:
             logger.exception("Failed to save app state to %s.", self.state_file)
             if temp_path is not None:
                 temp_path.unlink(missing_ok=True)

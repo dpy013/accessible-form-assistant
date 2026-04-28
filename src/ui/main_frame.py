@@ -488,6 +488,9 @@ class MainFrame(wx.Frame):
         )
 
     def on_restart_app(self, _event: wx.Event | None = None) -> None:
+        if self._has_background_tasks():
+            self._show_background_task_message("重启")
+            return
         if not self._can_discard_or_save_changes():
             return
 
@@ -869,22 +872,28 @@ class MainFrame(wx.Frame):
         )
 
     def _on_close(self, event: wx.CloseEvent) -> None:
+        if self._has_background_tasks():
+            self._show_background_task_message("关闭")
+            event.Veto()
+            return
         if self._restart_pending:
             event.Skip()
-            return
-        if self._export_in_progress or self._backup_in_progress:
-            wx.MessageBox(
-                "后台任务仍在执行，请等待导出或备份完成后再关闭。",
-                "请稍候",
-                wx.OK | wx.ICON_INFORMATION,
-                self,
-            )
-            event.Veto()
             return
         if not self._can_discard_or_save_changes():
             event.Veto()
             return
         event.Skip()
+
+    def _has_background_tasks(self) -> bool:
+        return self._export_in_progress or self._backup_in_progress
+
+    def _show_background_task_message(self, action: str) -> None:
+        wx.MessageBox(
+            f"后台任务仍在执行，请等待导出或备份完成后再{action}。",
+            "请稍候",
+            wx.OK | wx.ICON_INFORMATION,
+            self,
+        )
 
     def _run_background_task(
         self,
