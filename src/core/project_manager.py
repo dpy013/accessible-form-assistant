@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -137,9 +138,9 @@ class ProjectManager:
 
     def save_project(self, session: ProjectSession) -> None:
         self._ensure_project_directories(session.root)
-        session.project_file.write_text(
+        self._write_text_atomic(
+            session.project_file,
             json.dumps(session.data.to_dict(), ensure_ascii=False, indent=2),
-            encoding="utf-8",
         )
         self.save_config(session)
 
@@ -255,7 +256,7 @@ class ProjectManager:
 
         tree = ET.ElementTree(root)
         ET.indent(tree, space="  ")
-        tree.write(session.config_file, encoding="utf-8", xml_declaration=True)
+        self._write_xml_atomic(tree, session.config_file)
 
     def _normalize_project_session(self, session: ProjectSession) -> None:
         current_number = session.data.meta.project_number or session.root.name
@@ -289,3 +290,34 @@ class ProjectManager:
     def _ensure_project_directories(self, project_root: Path) -> None:
         ensure_directory(project_root / "assets")
         ensure_directory(project_root / "backup")
+
+    def _write_text_atomic(self, target: Path, content: str) -> None:
+        temp_path: Path | None = None
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=target.parent,
+            prefix=f"{target.stem}_",
+            suffix=f"{target.suffix}.tmp",
+            delete=False,
+        ) as handle:
+            handle.write(content)
+            temp_path = Path(handle.name)
+        temp_path.replace(target)
+
+    def _write_xml_atomic(self, tree: ET.ElementTree, target: Path) -> None:
+        temp_path: Path | None = None
+        with tempfile.NamedTemporaryFile(
+            "wb",
+            dir=target.parent,
+            prefix=f"{target.stem}_",
+            suffix=f"{target.suffix}.tmp",
+            delete=False,
+        ) as handle:
+            temp_path = Path(handle.name)
+        try:
+            tree.write(temp_path, encoding="utf-8", xml_declaration=True)
+            temp_path.replace(target)
+        except Exception:
+            temp_path.unlink(missing_ok=True)
+            raise
