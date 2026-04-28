@@ -78,10 +78,10 @@ accessible-form-assistant-0.1.0-260427s.exe
 3. 使用 PyInstaller 构建 Windows 可执行文件
 4. 上传构建产物
 
-构建产物命名格式：
+构建产物命名格式会按工作流运行号动态生成，避免同一天内重复：
 
 ```text
-accessible-form-assistant-0.1.0-<yymmdd>s-windows-x64
+accessible-form-assistant-0.1.0-<yymmdd>r<run-number>[a<attempt>]-windows-x64
 ```
 
 ## License
