@@ -293,17 +293,22 @@ class ProjectManager:
 
     def _write_text_atomic(self, target: Path, content: str) -> None:
         temp_path: Path | None = None
-        with tempfile.NamedTemporaryFile(
-            "w",
-            encoding="utf-8",
-            dir=target.parent,
-            prefix=f"{target.stem}_",
-            suffix=f"{target.suffix}.tmp",
-            delete=False,
-        ) as handle:
-            handle.write(content)
-            temp_path = Path(handle.name)
-        temp_path.replace(target)
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                dir=target.parent,
+                prefix=f"{target.stem}_",
+                suffix=f"{target.suffix}.tmp",
+                delete=False,
+            ) as handle:
+                handle.write(content)
+                temp_path = Path(handle.name)
+            temp_path.replace(target)
+        except Exception:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
+            raise
 
     def _write_xml_atomic(self, tree: ET.ElementTree, target: Path) -> None:
         temp_path: Path | None = None
