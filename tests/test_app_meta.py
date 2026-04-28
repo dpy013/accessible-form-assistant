@@ -43,9 +43,7 @@ class GitHubActionsArtifactNameTests(unittest.TestCase):
             run_attempt=2,
         )
 
-        self.assertEqual(
-            artifact_name, "accessible-form-assistant-run25067180150-a2"
-        )
+        self.assertEqual(artifact_name, "accessible-form-assistant-run25067180150-a2")
 
 
 class ReleaseNameTests(unittest.TestCase):
