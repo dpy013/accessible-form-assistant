@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -59,6 +60,9 @@ class ProjectData:
         items = [ProjectItem(**item) for item in payload.get("items", [])]
         return cls(meta=meta, items=items)
 
+    def clone(self) -> "ProjectData":
+        return self.from_dict(self.to_dict())
+
 
 @dataclass(slots=True)
 class ToolSettings:
@@ -70,6 +74,15 @@ class ToolSettings:
 class ProjectConfig:
     tool_settings: ToolSettings = field(default_factory=ToolSettings)
     custom_settings: dict[str, str] = field(default_factory=dict)
+
+    def clone(self) -> "ProjectConfig":
+        return ProjectConfig(
+            tool_settings=ToolSettings(
+                hide_completed=self.tool_settings.hide_completed,
+                show_trash=self.tool_settings.show_trash,
+            ),
+            custom_settings=dict(self.custom_settings),
+        )
 
 
 @dataclass(slots=True)
@@ -85,6 +98,13 @@ class ProjectSession:
     @property
     def config_file(self) -> Path:
         return self.root / CONFIG_FILENAME
+
+    def clone(self) -> "ProjectSession":
+        return ProjectSession(
+            root=self.root,
+            data=self.data.clone(),
+            config=self.config.clone(),
+        )
 
 
 class ProjectManager:
@@ -118,9 +138,9 @@ class ProjectManager:
 
     def save_project(self, session: ProjectSession) -> None:
         self._ensure_project_directories(session.root)
-        session.project_file.write_text(
+        self._write_text_atomic(
+            session.project_file,
             json.dumps(session.data.to_dict(), ensure_ascii=False, indent=2),
-            encoding="utf-8",
         )
         self.save_config(session)
 
@@ -149,10 +169,14 @@ class ProjectManager:
 
     def backup_project(self, session: ProjectSession) -> Path:
         self.save_project(session)
+        return self.backup_project_file(session.project_file)
+
+    def backup_project_file(self, project_file: Path) -> Path:
         backup_name = datetime.now().strftime("project_%Y%m%d_%H%M%S.json")
-        self._ensure_project_directories(session.root)
-        target = session.root / "backup" / backup_name
-        shutil.copy2(session.project_file, target)
+        project_root = project_file.parent
+        self._ensure_project_directories(project_root)
+        target = project_root / "backup" / backup_name
+        shutil.copy2(project_file, target)
         return target
 
     def clean_project_directory(self, session: ProjectSession) -> list[str]:
@@ -232,7 +256,7 @@ class ProjectManager:
 
         tree = ET.ElementTree(root)
         ET.indent(tree, space="  ")
-        tree.write(session.config_file, encoding="utf-8", xml_declaration=True)
+        self._write_xml_atomic(tree, session.config_file)
 
     def _normalize_project_session(self, session: ProjectSession) -> None:
         current_number = session.data.meta.project_number or session.root.name
@@ -266,3 +290,39 @@ class ProjectManager:
     def _ensure_project_directories(self, project_root: Path) -> None:
         ensure_directory(project_root / "assets")
         ensure_directory(project_root / "backup")
+
+    def _write_text_atomic(self, target: Path, content: str) -> None:
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                dir=target.parent,
+                prefix=f"{target.stem}_",
+                suffix=f"{target.suffix}.tmp",
+                delete=False,
+            ) as handle:
+                handle.write(content)
+                temp_path = Path(handle.name)
+            temp_path.replace(target)
+        except Exception:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
+            raise
+
+    def _write_xml_atomic(self, tree: ET.ElementTree, target: Path) -> None:
+        temp_path: Path | None = None
+        with tempfile.NamedTemporaryFile(
+            "wb",
+            dir=target.parent,
+            prefix=f"{target.stem}_",
+            suffix=f"{target.suffix}.tmp",
+            delete=False,
+        ) as handle:
+            temp_path = Path(handle.name)
+        try:
+            tree.write(temp_path, encoding="utf-8", xml_declaration=True)
+            temp_path.replace(target)
+        except Exception:
+            temp_path.unlink(missing_ok=True)
+            raise
