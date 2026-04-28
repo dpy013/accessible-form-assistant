@@ -297,14 +297,14 @@ class ProjectImporter:
         return match.group(1).strip() if match else ""
 
     def _report_item_from_mapping(
-        self, row: Mapping[str, str], _index: int
+        self, row: Mapping[str, str], index: int
     ) -> ProjectItem | None:
         item_id = self._mapped_value(row, "ID")
         content = self._mapped_value(row, "检查项", "内容")
         if not item_id and not content:
             return None
         return ProjectItem(
-            id=item_id or "IMPORT",
+            id=item_id or f"IMPORT_{index:03d}",
             content=content or "导入内容",
             status=self._normalize_status(self._mapped_value(row, "状态")),
             priority=self._normalize_priority(self._mapped_value(row, "优先级")),
