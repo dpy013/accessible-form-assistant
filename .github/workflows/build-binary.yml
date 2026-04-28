@@ -38,11 +38,13 @@ jobs:
       - name: Set build metadata
         shell: pwsh
         run: |
-          $buildLabel = [DateTime]::UtcNow.ToString("yyMMdd") + "s"
+          $buildLabel = python -c "from src.app_meta import github_actions_build_label; print(github_actions_build_label())"
           $env:BUILD_LABEL = $buildLabel
           $releaseName = python -c "from src.app_meta import release_name; print(release_name())"
+          $artifactName = python -c "from src.app_meta import github_actions_artifact_name; print(github_actions_artifact_name())"
           "BUILD_LABEL=$buildLabel" >> $env:GITHUB_ENV
           "APP_RELEASE_NAME=$releaseName" >> $env:GITHUB_ENV
+          "ARTIFACT_NAME=$artifactName" >> $env:GITHUB_ENV
 
       - name: Build executable
         shell: pwsh
@@ -52,7 +54,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ env.APP_RELEASE_NAME }}-windows-x64
+          name: ${{ env.ARTIFACT_NAME }}-windows-x64
           path: dist/${{ env.APP_RELEASE_NAME }}/**
           if-no-files-found: error
 
