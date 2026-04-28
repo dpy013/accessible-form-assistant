@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from src.core.importer import ProjectImporter
+from src.core.structured_import import TableSchema, parse_tables_with_schema
 
 
 class ReportImportFallbackIdTests(unittest.TestCase):
@@ -30,6 +31,28 @@ class ReportImportFallbackIdTests(unittest.TestCase):
 
         self.assertIsNotNone(item)
         self.assertEqual(item.id, "A11Y_007")
+
+    def test_parse_tables_assigns_unique_fallback_ids_across_tables(self) -> None:
+        schema = TableSchema(
+            name="report-check-item",
+            required_headers=("ID", "检查项", "状态", "优先级", "描述"),
+            row_factory=self.importer._report_item_from_mapping,  # noqa: SLF001
+        )
+        tables = [
+            [
+                ["ID", "检查项", "状态", "优先级", "描述"],
+                ["", "第一个问题", "待处理", "高", ""],
+                ["", "", "", "", ""],
+            ],
+            [
+                ["ID", "检查项", "状态", "优先级", "描述"],
+                ["", "第二个问题", "待处理", "中", ""],
+            ],
+        ]
+
+        items = parse_tables_with_schema(tables, schema)
+
+        self.assertEqual([item.id for item in items], ["IMPORT_001", "IMPORT_003"])
 
 
 if __name__ == "__main__":
