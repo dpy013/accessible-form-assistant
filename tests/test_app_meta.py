@@ -35,7 +35,7 @@ class GitHubActionsArtifactNameTests(unittest.TestCase):
             run_attempt=1,
         )
 
-        self.assertEqual(artifact_name, "accessible-form-assistant-run25067180150")
+        self.assertEqual(artifact_name, f"{app_meta.APP_DIST_NAME}-run25067180150")
 
     def test_artifact_name_includes_rerun_attempt(self) -> None:
         artifact_name = app_meta.github_actions_artifact_name(
@@ -43,7 +43,7 @@ class GitHubActionsArtifactNameTests(unittest.TestCase):
             run_attempt=2,
         )
 
-        self.assertEqual(artifact_name, "accessible-form-assistant-run25067180150-a2")
+        self.assertEqual(artifact_name, f"{app_meta.APP_DIST_NAME}-run25067180150-a2")
 
 
 class ReleaseNameTests(unittest.TestCase):
