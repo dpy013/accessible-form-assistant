@@ -29,9 +29,10 @@ class AppStateManager:
             payload = json.loads(self.state_file.read_text(encoding="utf-8"))
         except OSError:
             logger.exception(
-                "Failed to read app state from %s; resetting state.", self.state_file
+                "Failed to read app state from %s; using default in-memory state without resetting the file.",
+                self.state_file,
             )
-            return self._reset_state()
+            return AppState()
         except UnicodeDecodeError:
             logger.exception(
                 "App state file %s is not valid UTF-8; resetting state.",
