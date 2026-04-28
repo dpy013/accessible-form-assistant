@@ -59,6 +59,9 @@ class ProjectData:
         items = [ProjectItem(**item) for item in payload.get("items", [])]
         return cls(meta=meta, items=items)
 
+    def clone(self) -> "ProjectData":
+        return self.from_dict(self.to_dict())
+
 
 @dataclass(slots=True)
 class ToolSettings:
@@ -70,6 +73,15 @@ class ToolSettings:
 class ProjectConfig:
     tool_settings: ToolSettings = field(default_factory=ToolSettings)
     custom_settings: dict[str, str] = field(default_factory=dict)
+
+    def clone(self) -> "ProjectConfig":
+        return ProjectConfig(
+            tool_settings=ToolSettings(
+                hide_completed=self.tool_settings.hide_completed,
+                show_trash=self.tool_settings.show_trash,
+            ),
+            custom_settings=dict(self.custom_settings),
+        )
 
 
 @dataclass(slots=True)
@@ -85,6 +97,13 @@ class ProjectSession:
     @property
     def config_file(self) -> Path:
         return self.root / CONFIG_FILENAME
+
+    def clone(self) -> "ProjectSession":
+        return ProjectSession(
+            root=self.root,
+            data=self.data.clone(),
+            config=self.config.clone(),
+        )
 
 
 class ProjectManager:
@@ -149,10 +168,14 @@ class ProjectManager:
 
     def backup_project(self, session: ProjectSession) -> Path:
         self.save_project(session)
+        return self.backup_project_file(session.project_file)
+
+    def backup_project_file(self, project_file: Path) -> Path:
         backup_name = datetime.now().strftime("project_%Y%m%d_%H%M%S.json")
-        self._ensure_project_directories(session.root)
-        target = session.root / "backup" / backup_name
-        shutil.copy2(session.project_file, target)
+        project_root = project_file.parent
+        self._ensure_project_directories(project_root)
+        target = project_root / "backup" / backup_name
+        shutil.copy2(project_file, target)
         return target
 
     def clean_project_directory(self, session: ProjectSession) -> list[str]:

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import ctypes
+import logging
 import subprocess
 import sys
+import threading
 from collections.abc import Callable
 from pathlib import Path
 
@@ -25,6 +27,7 @@ WM_SYSCOMMAND = 0x0112
 SC_KEYMENU = 0xF100
 GUI_INMENUMODE = 0x00000004
 MenuHandler = Callable[[wx.Event | None], None]
+logger = logging.getLogger(__name__)
 
 
 class RECT(ctypes.Structure):
@@ -72,6 +75,8 @@ class MainFrame(wx.Frame):
         self._list_focus_restore_pending = False
         self._opening_menu_with_alt = False
         self._restart_pending = False
+        self._export_in_progress = False
+        self._backup_in_progress = False
 
         self.CreateStatusBar()
         self._build_menu()
@@ -248,10 +253,13 @@ class MainFrame(wx.Frame):
                 self.SetStatusText(f"已恢复最近工程：{latest_project.name}")
                 return
             except Exception:
+                logger.exception("Failed to restore recent project %s.", latest_project)
                 try:
                     self.app_state.forget_project(latest_project)
                 except OSError:
-                    pass
+                    logger.exception(
+                        "Failed to forget invalid recent project %s.", latest_project
+                    )
                 self.SetStatusText("最近工程恢复失败，请重新选择。")
         self.SetStatusText("当前未打开工程。可按 Alt+F 使用菜单，或使用窗口顶部按钮。")
 
@@ -745,6 +753,14 @@ class MainFrame(wx.Frame):
     def _export(self, wildcard: str, default_name: str, exporter) -> None:
         if not self.session:
             return
+        if self._export_in_progress:
+            wx.MessageBox(
+                "导出任务仍在执行，请等待当前导出完成。",
+                "导出中",
+                wx.OK | wx.ICON_INFORMATION,
+                self,
+            )
+            return
         self._save_session()
 
         dialog = wx.FileDialog(
@@ -761,13 +777,16 @@ class MainFrame(wx.Frame):
 
         target = Path(dialog.GetPath())
         dialog.Destroy()
-        try:
-            exporter(self.session, target)
-        except Exception as exc:
-            wx.MessageBox(str(exc), "导出失败", wx.OK | wx.ICON_ERROR, self)
-            return
-        wx.MessageBox(
-            f"已导出到：{target}", "导出完成", wx.OK | wx.ICON_INFORMATION, self
+
+        session_snapshot = self.session.clone()
+        self._export_in_progress = True
+        self.SetStatusText(f"正在导出：{target.name}")
+        self._run_background_task(
+            thread_name="project-export",
+            work=lambda: exporter(session_snapshot, target),
+            on_success=self._on_export_completed,
+            on_error=self._on_export_failed,
+            on_complete=self._finish_export_task,
         )
 
     def _import_project(self, wildcard: str, format_name: str) -> None:
@@ -824,10 +843,19 @@ class MainFrame(wx.Frame):
         self.SetStatusText(f"已从 {source_path.name} 创建工程")
 
     def _on_backup_timer(self, _event: wx.TimerEvent) -> None:
-        if not self.session or not self._dirty:
+        if not self.session or not self._dirty or self._backup_in_progress:
             return
         self._save_session(status_message="已自动保存")
-        self.project_manager.backup_project(self.session)
+        project_file = self.session.project_file
+        self._backup_in_progress = True
+        self.SetStatusText("已自动保存，正在创建备份")
+        self._run_background_task(
+            thread_name="project-backup",
+            work=lambda: self.project_manager.backup_project_file(project_file),
+            on_success=self._on_backup_completed,
+            on_error=self._on_backup_failed,
+            on_complete=self._finish_backup_task,
+        )
 
     def _update_title(self) -> None:
         if not self.session:
@@ -844,10 +872,64 @@ class MainFrame(wx.Frame):
         if self._restart_pending:
             event.Skip()
             return
+        if self._export_in_progress or self._backup_in_progress:
+            wx.MessageBox(
+                "后台任务仍在执行，请等待导出或备份完成后再关闭。",
+                "请稍候",
+                wx.OK | wx.ICON_INFORMATION,
+                self,
+            )
+            event.Veto()
+            return
         if not self._can_discard_or_save_changes():
             event.Veto()
             return
         event.Skip()
+
+    def _run_background_task(
+        self,
+        *,
+        thread_name: str,
+        work: Callable[[], object],
+        on_success: Callable[[object], None],
+        on_error: Callable[[Exception], None],
+        on_complete: Callable[[], None],
+    ) -> None:
+        def runner() -> None:
+            try:
+                result = work()
+            except Exception as exc:
+                logger.exception("Background task %s failed.", thread_name)
+                wx.CallAfter(on_error, exc)
+            else:
+                wx.CallAfter(on_success, result)
+            finally:
+                wx.CallAfter(on_complete)
+
+        threading.Thread(target=runner, name=thread_name, daemon=True).start()
+
+    def _on_export_completed(self, target: Path) -> None:
+        self.SetStatusText(f"已导出到：{target}")
+        wx.MessageBox(
+            f"已导出到：{target}", "导出完成", wx.OK | wx.ICON_INFORMATION, self
+        )
+
+    def _on_export_failed(self, exc: Exception) -> None:
+        self.SetStatusText("导出失败")
+        wx.MessageBox(str(exc), "导出失败", wx.OK | wx.ICON_ERROR, self)
+
+    def _finish_export_task(self) -> None:
+        self._export_in_progress = False
+
+    def _on_backup_completed(self, target: Path) -> None:
+        self.SetStatusText(f"已自动备份：{target.name}")
+
+    def _on_backup_failed(self, exc: Exception) -> None:
+        self.SetStatusText("自动备份失败")
+        wx.MessageBox(f"自动备份失败：{exc}", "错误", wx.OK | wx.ICON_ERROR, self)
+
+    def _finish_backup_task(self) -> None:
+        self._backup_in_progress = False
 
     def _on_key_down(self, event: wx.KeyEvent) -> None:
         key_code = event.GetKeyCode()
