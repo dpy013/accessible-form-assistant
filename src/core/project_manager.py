@@ -307,7 +307,9 @@ class ProjectManager:
 
     def _move_invalid_config(self, config_file: Path) -> Path:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        backup_path = config_file.with_name(f"{config_file.stem}.invalid_{timestamp}.xml")
+        backup_path = config_file.with_name(
+            f"{config_file.stem}.invalid_{timestamp}.xml"
+        )
         config_file.replace(backup_path)
         return backup_path
 

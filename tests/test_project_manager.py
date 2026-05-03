@@ -56,7 +56,9 @@ class ProjectManagerConfigRecoveryTests(unittest.TestCase):
 
         config_root = ET.parse(session.root / CONFIG_FILENAME).getroot()
         self.assertEqual(config_root.tag, "config")
-        self.assertEqual(config_root.findtext("./tool-settings/hide-completed"), "false")
+        self.assertEqual(
+            config_root.findtext("./tool-settings/hide-completed"), "false"
+        )
         self.assertEqual(config_root.findtext("./tool-settings/show-trash"), "false")
 
 
