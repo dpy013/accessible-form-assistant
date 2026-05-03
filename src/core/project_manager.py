@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import tempfile
 from dataclasses import asdict, dataclass, field
@@ -21,6 +22,7 @@ from src.core.utils import (
 
 PROJECT_FILENAME = "project.json"
 CONFIG_FILENAME = "config.xml"
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -145,18 +147,18 @@ class ProjectManager:
         self.save_config(session)
 
     def load_project(self, project_root: Path) -> ProjectSession:
-        config_file = project_root / CONFIG_FILENAME
+        config, recovered = self.load_config(project_root)
         payload = json.loads(
             (project_root / PROJECT_FILENAME).read_text(encoding="utf-8")
         )
         session = ProjectSession(
             root=project_root,
             data=ProjectData.from_dict(payload),
-            config=self.load_config(project_root),
+            config=config,
         )
         self._ensure_project_directories(session.root)
         self._normalize_project_session(session)
-        if not config_file.exists():
+        if recovered or not session.config_file.exists():
             self.save_config(session)
         return session
 
@@ -208,35 +210,47 @@ class ProjectManager:
         pil_image.save(destination, format="JPEG", quality=85, optimize=True)
         return relative_path.as_posix()
 
-    def load_config(self, project_root: Path) -> ProjectConfig:
+    def load_config(self, project_root: Path) -> tuple[ProjectConfig, bool]:
         config_file = project_root / CONFIG_FILENAME
         if not config_file.exists():
-            return ProjectConfig()
+            return ProjectConfig(), False
 
-        tree = ET.parse(config_file)
+        try:
+            tree = ET.parse(config_file)
+        except ET.ParseError:
+            backup_path = self._move_invalid_config(config_file)
+            logger.exception(
+                "Project config %s is invalid XML; moved it to %s and reset to defaults.",
+                config_file,
+                backup_path,
+            )
+            return ProjectConfig(), True
         root = tree.getroot()
         tool_settings = root.find("tool-settings")
         custom_settings = root.find("custom-settings")
-        return ProjectConfig(
-            tool_settings=ToolSettings(
-                hide_completed=self._xml_bool(
-                    tool_settings.findtext("hide-completed")
-                    if tool_settings is not None
-                    else None
+        return (
+            ProjectConfig(
+                tool_settings=ToolSettings(
+                    hide_completed=self._xml_bool(
+                        tool_settings.findtext("hide-completed")
+                        if tool_settings is not None
+                        else None
+                    ),
+                    show_trash=self._xml_bool(
+                        tool_settings.findtext("show-trash")
+                        if tool_settings is not None
+                        else None
+                    ),
                 ),
-                show_trash=self._xml_bool(
-                    tool_settings.findtext("show-trash")
-                    if tool_settings is not None
-                    else None
-                ),
+                custom_settings={
+                    entry.get("key", "").strip(): (entry.text or "").strip()
+                    for entry in custom_settings.findall("entry")
+                    if entry.get("key", "").strip()
+                }
+                if custom_settings is not None
+                else {},
             ),
-            custom_settings={
-                entry.get("key", "").strip(): (entry.text or "").strip()
-                for entry in custom_settings.findall("entry")
-                if entry.get("key", "").strip()
-            }
-            if custom_settings is not None
-            else {},
+            False,
         )
 
     def save_config(self, session: ProjectSession) -> None:
@@ -290,6 +304,12 @@ class ProjectManager:
     def _ensure_project_directories(self, project_root: Path) -> None:
         ensure_directory(project_root / "assets")
         ensure_directory(project_root / "backup")
+
+    def _move_invalid_config(self, config_file: Path) -> Path:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        backup_path = config_file.with_name(f"{config_file.stem}.invalid_{timestamp}.xml")
+        config_file.replace(backup_path)
+        return backup_path
 
     def _write_text_atomic(self, target: Path, content: str) -> None:
         temp_path: Path | None = None
