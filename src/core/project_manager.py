@@ -158,7 +158,7 @@ class ProjectManager:
         )
         self._ensure_project_directories(session.root)
         self._normalize_project_session(session)
-        if recovered or not session.config_file.exists():
+        if not session.config_file.exists():
             self.save_config(session)
         return session
 
